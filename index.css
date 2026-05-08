@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes neon-flow {
+    0% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+    100% {
+      background-position: 0% 50%;
+    }
+  }
+
+  .neon-bar-success {
+    background: linear-gradient(90deg, #00f2ea, #0055ff, #00f2ea);
+    background-size: 200% 200%;
+    animation: neon-flow 3s ease infinite;
+    box-shadow:
+      0 0 15px rgba(0, 242, 234, 0.6),
+      inset 0 0 10px rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .neon-bar-success-right {
+    background: linear-gradient(to bottom, #0044cc, #001144);
+    opacity: 0.9;
+    box-shadow: 0 0 15px rgba(0, 85, 255, 0.4);
+  }
+
+  .neon-bar-success-top {
+    background: #4deeea;
+    box-shadow: 0 0 20px rgba(77, 238, 234, 0.8);
+  }
+
+  .neon-bar-failure {
+    background: linear-gradient(90deg, #ff0055, #ff00cc, #ff0055);
+    background-size: 200% 200%;
+    animation: neon-flow 3s ease infinite;
+    box-shadow:
+      0 0 15px rgba(255, 0, 85, 0.6),
+      inset 0 0 10px rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .neon-bar-failure-right {
+    background: linear-gradient(to bottom, #cc0044, #440011);
+    opacity: 0.9;
+    box-shadow: 0 0 15px rgba(255, 0, 85, 0.4);
+  }
+
+  .neon-bar-failure-top {
+    background: #ff4d88;
+    box-shadow: 0 0 20px rgba(255, 77, 136, 0.8);
+  }
+}
