@@ -191,6 +191,56 @@ const VIEW_LABELS: Record<ViewType, string> = {
   REPORTS: "Reports",
   PROFILE: "Profile",
   ADMIN: "Admin",
+  FRAMEWORK: "",
+  ORGANIZER: "",
+};
+
+const PROCESSED_PAYMENT_REFS_KEY = "cabal_processed_payment_refs";
+
+const readProcessedPaymentRefs = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(PROCESSED_PAYMENT_REFS_KEY) || "[]");
+  } catch {
+    return [];
+  }
+};
+
+const rememberProcessedPaymentRef = (reference: string) => {
+  const refs = new Set(readProcessedPaymentRefs());
+  refs.add(reference);
+  localStorage.setItem(
+    PROCESSED_PAYMENT_REFS_KEY,
+    JSON.stringify(Array.from(refs).slice(-50))
+  );
+};
+
+const getCachedGeoInfo = async () => {
+  const cacheKey = "cabal_geo_cache_v1";
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.expiresAt > Date.now()) {
+        return parsed.data;
+      }
+    }
+  } catch {}
+
+  try {
+    const res = await fetch("https://ipapi.co/json/");
+    if (!res.ok) throw new Error("Geo lookup failed");
+    const data = await res.json();
+    localStorage.setItem(
+      cacheKey,
+      JSON.stringify({
+        data,
+        expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+      })
+    );
+    return data;
+  } catch {
+    return null;
+  }
 };
 
 const App: React.FC = () => {
@@ -232,11 +282,10 @@ const App: React.FC = () => {
         return;
       }
 
-      // Fallback to IP detection
+      // Fallback to cached IP detection
       try {
-        const res = await fetch("https://ipapi.co/json/");
-        if (res.ok) {
-          const data = await res.json();
+        const data = await getCachedGeoInfo();
+        if (data) {
           const detected = data.country_code === "NG" ? "NGN" : "USD";
           setCurrency(detected);
           localStorage.setItem("cabal_currency", detected);
@@ -274,6 +323,11 @@ const App: React.FC = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
 
       const verifyPayment = async () => {
+        if (readProcessedPaymentRefs().includes(reference)) {
+          addNotification("Payment already processed.", "INFO");
+          return;
+        }
+
         try {
           addNotification("VERIFYING TRANSACTION...", "INFO");
           const res = await fetch(
@@ -285,14 +339,15 @@ const App: React.FC = () => {
             // ── New Pricing (April 2026 Update) ──────────────────
             // USD:  $5.00  = 1000 XP (standard) | 1500 XP (first purchase)
             // NGN:  ₦2,500 = 1000 XP (standard) | 1500 XP (first purchase)
-            const paidAmount = data.amount;   // Amount in smallest unit (kobo for NGN, cents for USD)
+            const paidAmount = data.amount; // Amount in smallest unit (kobo for NGN, cents for USD)
             const payCurrency = data.currency; // "NGN" or "USD"
 
             // Paystack returns amounts in kobo (NGN) or cents (USD)
-            const paidMajor = payCurrency === "NGN" ? paidAmount / 100 : paidAmount / 100;
+            const paidMajor =
+              payCurrency === "NGN" ? paidAmount / 100 : paidAmount / 100;
 
             const PRICE_NGN = 2500;
-            const PRICE_USD = 5.00;
+            const PRICE_USD = 5.0;
             const STANDARD_XP = 1000;
             const FIRST_XP = 1500;
 
@@ -313,7 +368,8 @@ const App: React.FC = () => {
             }
 
             if (xpToAdd > 0) {
-              handleAddXP(xpToAdd); // reuse existing logic
+              rememberProcessedPaymentRef(reference);
+              handleAddXP(xpToAdd, reference); // reuse existing logic
               setCurrentView("CHECKOUT"); // Redirect user to wallet to see balance
               // addNotification in handleAddXP will handle success msg
             } else {
@@ -778,16 +834,12 @@ const App: React.FC = () => {
   }, [currentUser]);
 
   const getClientInfo = async () => {
-    try {
-      const res = await fetch("https://ipapi.co/json/");
-      const data = await res.json();
-      return {
-        ip: data.ip || "Unknown",
-        country: data.country_name || "Unknown",
-      };
-    } catch {
-      return { ip: "Hidden", country: "Unknown" };
-    }
+    const data = await getCachedGeoInfo();
+    if (!data) return { ip: "Hidden", country: "Unknown" };
+    return {
+      ip: data.ip || "Unknown",
+      country: data.country_name || "Unknown",
+    };
   };
 
   useEffect(() => {
@@ -1137,7 +1189,10 @@ const App: React.FC = () => {
     addNotification("ACCOUNT RESTORED. PENALTY PAID.", "SUCCESS");
   };
 
-  const handleAddXP = async (amount: number = 1000) => {
+  const handleAddXP = async (
+    amount: number = 1000,
+    paymentReference?: string
+  ) => {
     saveBlockedRef.current = true;
     setTimeout(() => {
       saveBlockedRef.current = false;
@@ -1148,8 +1203,9 @@ const App: React.FC = () => {
         username: currentUser,
         type: "PURCHASE_XP",
         amount: amount,
-        status: "PENDING",
-        metadata: { method: "PAYSTACK" },
+        status: "APPROVED",
+        reference_id: paymentReference || `PURCHASE_${Date.now()}`,
+        metadata: { method: "PAYSTACK", verified: true },
       });
     }
 
@@ -1160,17 +1216,17 @@ const App: React.FC = () => {
       lastLocalInteraction.current = Date.now();
       let newBought = (p.boughtXp || 0) + amount;
       let newCurrent = p.currentXp + amount;
-      
+
       // Auto-Deduct Fee if pending
       if (appliedFee > 0 && newBought >= appliedFee) {
         newBought -= appliedFee;
         newCurrent -= appliedFee;
         wasRestored = true;
-        
+
         // Transaction logging needs the latest state but we'll do it inside functional set normally
         // or just after if we know we restored.
         if (currentUser) {
-           addLocalTransaction({
+          addLocalTransaction({
             username: currentUser,
             type: "SYSTEM_FEE",
             amount: -appliedFee,
@@ -1206,16 +1262,16 @@ const App: React.FC = () => {
 
     // SIDE EFFECTS OUTSIDE
     if (wasRestored) {
-        setRestorationFee(null);
-        setShowPaymentModal(false);
-        addNotification(
-          `System Funds Added (+${amount}). Fee Paid (-${appliedFee}). Account ACTIVE.`,
-          "PAYMENT"
-        );
-      } else {
-        addNotification(`System Funds Added (+${amount} XP).`, "PAYMENT");
-        setDismissedLowXpWarning(true);
-      }
+      setRestorationFee(null);
+      setShowPaymentModal(false);
+      addNotification(
+        `System Funds Added (+${amount}). Fee Paid (-${appliedFee}). Account ACTIVE.`,
+        "PAYMENT"
+      );
+    } else {
+      addNotification(`System Funds Added (+${amount} XP).`, "PAYMENT");
+      setDismissedLowXpWarning(true);
+    }
   };
 
   // ... (rest of handlers: updatePlayerXP, handleUseItem, handlePurchaseItem, handleStartQuest, handleFailQuest, handleDeleteQuest, handleVerifyProof, handleAddQuest, handleTogglePin, handleAcceptQuestFromChat, handleGenerateTasksFromGoal, handleUpgradeStat, handleResetData, handleUpdatePassword, handleUpdatePlayer, handleExportData, handleLogin, handleLogout, addNotification, handleWithdraw, handleAddGoal, handleDeleteGoal, handleAddClient, handleUpdateClient, handleDeleteClient) ...
@@ -1564,7 +1620,10 @@ const App: React.FC = () => {
     if (!sourceQuest || sourceQuest.status !== TaskStatus.FAILED) return;
 
     if (deadline <= startTime) {
-      addNotification("Revive Failed: deadline must be after start time.", "WARNING");
+      addNotification(
+        "Revive Failed: deadline must be after start time.",
+        "WARNING"
+      );
       return;
     }
 
@@ -1783,36 +1842,50 @@ const App: React.FC = () => {
     const tempHistory = [{ role: "user", parts: [{ text: prompt }] }];
 
     addNotification("System is structuring task...", "INFO");
-    const response = await chatWithSystem(tempHistory, prompt, goals, quests, player);
+    const response = await chatWithSystem(
+      tempHistory,
+      prompt,
+      goals,
+      quests,
+      player
+    );
 
     if (response) {
       if (response.proposedPlan) {
         addNotification("Chaos Organized Successfully", "SUCCESS");
         return response.proposedPlan;
-      } 
-      
+      }
+
       // Fallback: If AI returned a single quest instead of a plan, wrap it
       if (response.quest) {
         addNotification("Directive Analyzed Successfully", "SUCCESS");
         const wrappedPlan: ProposedTaskPlan = {
           id: crypto.randomUUID(),
-          projects: [{
-            name: "Individual Directive",
-            tasks: [{
-              id: response.quest.id,
-              title: response.quest.title,
-              description: response.quest.description,
-              priority: "High",
-              difficulty: response.quest.difficulty,
-              xpCost: 80, // Standard organizer fee
-              startTime: response.quest.startTime ? new Date(response.quest.startTime).toISOString() : undefined,
-              deadline: response.quest.deadline ? new Date(response.quest.deadline).toISOString() : undefined,
-              requirements: response.quest.requirements,
-              durationMinutes: response.quest.durationMinutes,
-            }]
-          }],
+          projects: [
+            {
+              name: "Individual Directive",
+              tasks: [
+                {
+                  id: response.quest.id,
+                  title: response.quest.title,
+                  description: response.quest.description,
+                  priority: "High",
+                  difficulty: response.quest.difficulty,
+                  xpCost: 80, // Standard organizer fee
+                  startTime: response.quest.startTime
+                    ? new Date(response.quest.startTime).toISOString()
+                    : undefined,
+                  deadline: response.quest.deadline
+                    ? new Date(response.quest.deadline).toISOString()
+                    : undefined,
+                  requirements: response.quest.requirements,
+                  durationMinutes: response.quest.durationMinutes,
+                },
+              ],
+            },
+          ],
           totalXpCost: 80,
-          status: "PENDING"
+          status: "PENDING",
         };
         return wrappedPlan;
       }
@@ -1822,43 +1895,55 @@ const App: React.FC = () => {
 
   const handleExecuteChaosPlan = (plan: ProposedTaskPlan) => {
     let totalCost = 0;
-    plan.projects.forEach(proj => { totalCost += proj.tasks.length * 80; });
+    plan.projects.forEach((proj) => {
+      totalCost += proj.tasks.length * 80;
+    });
 
     if (player.boughtXp < totalCost) {
-        addNotification(`Insufficient Action Credits. Need ${totalCost} XP.`, "WARNING");
-        return;
+      addNotification(
+        `Insufficient Action Credits. Need ${totalCost} XP.`,
+        "WARNING"
+      );
+      return;
     }
     deductActionCredits(totalCost, "SYSTEM_AUTO_EXECUTION");
 
     const newQuests: Quest[] = [];
     let questsAdded = 0;
     plan.projects.forEach((proj) => {
-        proj.tasks.forEach((task) => {
+      proj.tasks.forEach((task) => {
         const newQuest: Quest = {
-            id: crypto.randomUUID(),
-            title: task.title,
-            description: task.description,
-            type: TaskType.MAIN,
-            status: TaskStatus.IDLE,
-            difficulty: task.difficulty,
-            xpReward: task.xpCost || 50,
-            penaltyXP: task.xpCost || 50,
-            requirements: task.requirements || [],
-            durationMinutes: task.durationMinutes || 60,
-            verificationAttempts: 0,
-            deadline: task.deadline ? new Date(task.deadline).getTime() : undefined,
-            startTime: task.startTime ? new Date(task.startTime).getTime() : Date.now(),
+          id: crypto.randomUUID(),
+          title: task.title,
+          description: task.description,
+          type: TaskType.MAIN,
+          status: TaskStatus.IDLE,
+          difficulty: task.difficulty,
+          xpReward: task.xpCost || 50,
+          penaltyXP: task.xpCost || 50,
+          requirements: task.requirements || [],
+          durationMinutes: task.durationMinutes || 60,
+          verificationAttempts: 0,
+          deadline: task.deadline
+            ? new Date(task.deadline).getTime()
+            : undefined,
+          startTime: task.startTime
+            ? new Date(task.startTime).getTime()
+            : Date.now(),
         };
         newQuests.push(newQuest);
         questsAdded++;
-        });
+      });
     });
 
     if (currentUser) {
-        newQuests.forEach(q => upsertQuest(q, currentUser));
+      newQuests.forEach((q) => upsertQuest(q, currentUser));
     }
-    setQuests(prev => [...newQuests, ...prev]);
-    addNotification(`Chaos Integrated: ${questsAdded} Tasks Created. (-${totalCost} XP)`, "SUCCESS");
+    setQuests((prev) => [...newQuests, ...prev]);
+    addNotification(
+      `Chaos Integrated: ${questsAdded} Tasks Created. (-${totalCost} XP)`,
+      "SUCCESS"
+    );
   };
 
   const handleAddQuest = async (
@@ -2126,9 +2211,10 @@ const App: React.FC = () => {
     setIsLoggingOut(false);
     setShowLanding(true);
   };
-  const lastNotificationRef = useRef<{ message: string; timestamp: number } | null>(
-    null
-  );
+  const lastNotificationRef = useRef<{
+    message: string;
+    timestamp: number;
+  } | null>(null);
 
   const addNotification = (
     m: string,
@@ -2186,7 +2272,6 @@ const App: React.FC = () => {
       await deleteClient(id);
     }
   };
-
 
   if (showLanding && !currentUser)
     return (
@@ -2371,7 +2456,6 @@ const App: React.FC = () => {
       <main className="flex-1 relative flex flex-col h-full bg-gray-50 dark:bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] dark:from-slate-900 dark:via-black dark:to-black">
         {/* Unified Header - Mobile & Desktop */}
         <div className="flex items-center justify-between px-4 md:px-8 py-3 bg-white/80 dark:bg-system-panel/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 z-30 sticky top-0 safe-top">
-          
           {/* Left Side: Menu on Mobile, Empty on Desktop */}
           <div className="flex items-center">
             <button
@@ -2390,7 +2474,12 @@ const App: React.FC = () => {
                   {VIEW_LABELS[currentView]}
                 </div>
                 <div className="text-[10px] font-mono uppercase tracking-wider text-gray-500">
-                  {quests.filter((q) => q.status === "IDLE" || q.status === "RUNNING").length} active
+                  {
+                    quests.filter(
+                      (q) => q.status === "IDLE" || q.status === "RUNNING"
+                    ).length
+                  }{" "}
+                  active
                 </div>
               </div>
             </div>
@@ -2469,12 +2558,20 @@ const App: React.FC = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div className="rounded-xl bg-gray-50 dark:bg-black px-3 py-3">
-                        <div className="text-[10px] font-mono uppercase text-gray-500">Action XP</div>
-                        <div className="mt-1 font-semibold text-gray-900 dark:text-white">{player.boughtXp}</div>
+                        <div className="text-[10px] font-mono uppercase text-gray-500">
+                          Action XP
+                        </div>
+                        <div className="mt-1 font-semibold text-gray-900 dark:text-white">
+                          {player.boughtXp}
+                        </div>
                       </div>
                       <div className="rounded-xl bg-gray-50 dark:bg-black px-3 py-3">
-                        <div className="text-[10px] font-mono uppercase text-gray-500">Verified</div>
-                        <div className="mt-1 font-semibold text-gray-900 dark:text-white">{player.totalTasksCompleted}</div>
+                        <div className="text-[10px] font-mono uppercase text-gray-500">
+                          Verified
+                        </div>
+                        <div className="mt-1 font-semibold text-gray-900 dark:text-white">
+                          {player.totalTasksCompleted}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -2601,7 +2698,11 @@ const App: React.FC = () => {
       <AnimatePresence>
         {(showPaymentModal || showLowXpModal) && (
           <PaymentModal
-            onPurchase={() => handleAddXP(1000)}
+            onPurchase={() => {
+              setShowPaymentModal(false);
+              setDismissedLowXpWarning(true);
+              setCurrentView("CHECKOUT");
+            }}
             onRestore={
               restorationFee && player.boughtXp >= restorationFee
                 ? handleRestoreAccount

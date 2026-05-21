@@ -25,7 +25,7 @@ const Store: React.FC<StoreProps> = ({ player, storeItems, onPurchase, onBuyXP, 
     selectedCategory === 'ALL' || item.type === selectedCategory
   );
 
-  const xpPrice = currency === 'NGN' ? '₦7,500' : '$5.00';
+  const xpPrice = currency === 'NGN' ? '₦2,500' : '$5.00';
 
   return (
     <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-10 relative">
@@ -91,7 +91,7 @@ const Store: React.FC<StoreProps> = ({ player, storeItems, onPurchase, onBuyXP, 
                     </h3>
                     <div className="text-4xl font-mono font-bold text-system-gold mb-4">+1,000 XP</div>
                     <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                    Purchase Action XP (Credits). Essential for penalty survival and rank advancement.
+                    Purchase Action XP securely through checkout. First purchase gets +500 bonus XP at the same entry price.
                     </p>
                 </div>
 

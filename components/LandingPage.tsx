@@ -335,6 +335,31 @@ const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
+      <section id="privacy-policy" className="py-20 bg-[#F8F8F5] border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-gray-200 shadow-sm mb-6">
+              <Lock size={14} className="text-indigo-600" />
+              <span className="text-xs font-semibold tracking-wide uppercase text-gray-500">
+                Data Policy
+              </span>
+            </div>
+            <h2 className="text-4xl md:text-5xl font-black uppercase tracking-tight mb-6 text-gray-900">
+              Between You And The System
+            </h2>
+            <p className="text-lg text-gray-700 leading-relaxed mb-5">
+              Execution Cabal stores only the information it needs to understand your patterns, track your directives, and adapt the system to your real behavior.
+            </p>
+            <p className="text-lg text-gray-700 leading-relaxed mb-5">
+              Your tasks, proof, progress, and performance signals stay inside the product flow. They are not exposed as public content, and they are not there for spectators. They are there so the system can learn how you work and help correct what keeps slowing you down.
+            </p>
+            <p className="text-lg text-gray-700 leading-relaxed">
+              Put simply: if the system knows nothing about you, it cannot help fix anything about you. The data you provide is used to coach, adapt, and enforce execution.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Real Stories - Collage Style */}
       <div className="py-24 bg-gray-900 text-white relative overflow-hidden">
         {/* Background Elements */}
@@ -609,6 +634,12 @@ const LandingPage: React.FC<LandingPageProps> = ({
         <p className="text-gray-500 font-mono text-xs uppercase tracking-widest">
           &copy; 2026 Execution Cabal. All rights reserved.
         </p>
+        <a
+          href="#privacy-policy"
+          className="mt-3 inline-block text-[11px] font-mono uppercase tracking-widest text-indigo-400 hover:text-indigo-300"
+        >
+          Privacy & Data Policy
+        </a>
       </footer>
     </div>
   );

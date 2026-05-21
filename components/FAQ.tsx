@@ -87,6 +87,10 @@ const FAQ: React.FC = () => {
       q: "Why does creating a task cost 10 XP?",
       a: "To prevent clutter. Every directive should be meaningful. By charging a small fee, the system ensures you only create tasks you actually intend to do.",
     },
+    {
+      q: "What data does the system use?",
+      a: "Your directives, proof, progress, and performance signals are used inside the system so it can understand your patterns, adapt your experience, and help correct weak execution habits. The point is coaching and adaptation, not exposing your private workflow to outsiders.",
+    },
   ];
 
   return (

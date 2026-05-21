@@ -119,17 +119,19 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
         if (insertError) throw insertError;
 
-        // Trigger Onboarding Email (Fire and forget or minimal log)
-        fetch("/api/email/onboarding", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: email.trim(),
-            username: cleanUsername,
-          }),
-        }).catch((err) =>
-          console.error("Onboarding Email Trigger Failed:", err)
-        );
+        // Trigger onboarding email only when the user actually provides one.
+        if (email.trim()) {
+          fetch("/api/email/onboarding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: email.trim(),
+              username: cleanUsername,
+            }),
+          }).catch((err) =>
+            console.error("Onboarding Email Trigger Failed:", err)
+          );
+        }
 
         recordAttempt(true);
         onLogin(cleanUsername);
