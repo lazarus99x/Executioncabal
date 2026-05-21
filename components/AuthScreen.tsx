@@ -222,7 +222,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             </h2>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               {isRegistering
-                ? "Keep it simple and use details you will remember."
+                ? "Use your email for onboarding, reminders, and reports, then choose a password or master key."
                 : "Use your username and password or master key to continue."}
             </p>
           </div>
@@ -250,9 +250,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               >
                 <label className="text-[11px] font-mono text-gray-500 uppercase mb-1.5 block tracking-wider">
                   Email
-                  <span className="ml-2 text-[10px] normal-case tracking-normal text-gray-400">
-                    Optional
-                  </span>
                 </label>
                 <input
                   type="email"
@@ -260,6 +257,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full rounded-xl bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 px-4 py-3.5 text-base text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors"
                   placeholder="you@example.com"
+                  required
                 />
               </motion.div>
             )}
