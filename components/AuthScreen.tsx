@@ -7,7 +7,6 @@ import {
   ShieldAlert,
   UserPlus,
   LogIn,
-  Mail,
   Eye,
   EyeOff,
 } from "lucide-react";
@@ -28,9 +27,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // --- SECURITY UTILS ---
   const hashPassword = async (text: string): Promise<string> => {
-    // Check if Secure Context (crypto.subtle) is available
     if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
       try {
         const encoder = new TextEncoder();
@@ -44,8 +41,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       }
     }
 
-    // Fallback for insecure contexts (http://IP)
-    console.log("Using JS SHA-256 fallback (Insecure Context)");
     return await fallbackSha256(text);
   };
 
@@ -64,7 +59,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
         parseInt(localStorage.getItem("auth_failures") || "0", 10) + 1;
       localStorage.setItem("auth_failures", failures.toString());
       if (failures >= 5) {
-        const lockoutEnd = Date.now() + 30 * 1000; // 30s lockout
+        const lockoutEnd = Date.now() + 30 * 1000;
         localStorage.setItem("auth_lockout", lockoutEnd.toString());
       }
     }
@@ -74,11 +69,10 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
     e.preventDefault();
     setError("");
 
-    // Check Lockout
     const lockoutEnd = getLockoutTime();
     if (Date.now() < lockoutEnd) {
       const remaining = Math.ceil((lockoutEnd - Date.now()) / 1000);
-      setError(`Too many attempts. System Locked. Retry in ${remaining}s.`);
+      setError(`Too many attempts. Try again in ${remaining}s.`);
       return;
     }
 
@@ -91,7 +85,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
       const inputHash = await hashPassword(cleanPassword);
 
       if (isRegistering) {
-        // ... REGISTRATION ...
         const { data: existing, error: checkError } = await supabase
           .from("profiles")
           .select("username")
@@ -99,14 +92,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
           .maybeSingle();
 
         if (checkError && checkError.code !== "PGRST116") throw checkError;
-        if (existing) throw new Error("Agent identity already exists.");
-
-        if (cleanUsername.length < 3) throw new Error("Codename too short.");
+        if (existing) throw new Error("That username is already taken.");
+        if (cleanUsername.length < 3) throw new Error("Username is too short.");
 
         const { error: insertError } = await supabase.from("profiles").insert([
           {
             username: cleanUsername,
-            password: inputHash, // STORED AS HASH
+            password: inputHash,
             email: email.trim() || null,
             player_data: {
               ...INITIAL_PLAYER,
@@ -119,7 +111,6 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
         if (insertError) throw insertError;
 
-        // Trigger onboarding email only when the user actually provides one.
         if (email.trim()) {
           fetch("/api/email/onboarding", {
             method: "POST",
@@ -135,115 +126,118 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
 
         recordAttempt(true);
         onLogin(cleanUsername);
-      } else {
-        // ... LOGIN ...
-        const { data, error: fetchError } = await supabase
-          .from("profiles")
-          .select("username, password, player_data")
-          .eq("username", cleanUsername)
-          .maybeSingle();
-
-        if (fetchError) throw fetchError;
-        if (!data) {
-          recordAttempt(false);
-          throw new Error("Identity not found.");
-        }
-
-        const storedPassword = data.password || "";
-        const playerData = data.player_data || {};
-        const recoveryHash = playerData.recovery_hash;
-
-        let authenticated = false;
-        let migrationNeeded = false;
-
-        // 1. Check Hash Match (Standard Secure Login)
-        if (storedPassword === inputHash) {
-          authenticated = true;
-        }
-        // 2. Check Plain Text Match (Legacy Migration)
-        else if (storedPassword === cleanPassword) {
-          authenticated = true;
-          migrationNeeded = true;
-        }
-        // 3. Check Recovery Key (Passkey Login)
-        else if (recoveryHash && recoveryHash === inputHash) {
-          authenticated = true;
-          console.log("Logged in via Recovery Passkey");
-        }
-
-        if (authenticated) {
-          // Auto-Secure Legacy Accounts
-          if (migrationNeeded) {
-            await supabase
-              .from("profiles")
-              .update({ password: inputHash })
-              .eq("username", cleanUsername);
-            console.log("Security Protocol: Migrated legacy password to hash.");
-          }
-
-          recordAttempt(true);
-          onLogin(data.username || cleanUsername);
-        } else {
-          recordAttempt(false);
-          throw new Error("Invalid Credentials or Passkey.");
-        }
+        return;
       }
+
+      const { data, error: fetchError } = await supabase
+        .from("profiles")
+        .select("username, password, player_data")
+        .eq("username", cleanUsername)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!data) {
+        recordAttempt(false);
+        throw new Error("Username not found.");
+      }
+
+      const storedPassword = data.password || "";
+      const playerData = data.player_data || {};
+      const recoveryHash = playerData.recovery_hash;
+
+      let authenticated = false;
+      let migrationNeeded = false;
+
+      if (storedPassword === inputHash) {
+        authenticated = true;
+      } else if (storedPassword === cleanPassword) {
+        authenticated = true;
+        migrationNeeded = true;
+      } else if (recoveryHash && recoveryHash === inputHash) {
+        authenticated = true;
+      }
+
+      if (!authenticated) {
+        recordAttempt(false);
+        throw new Error("Invalid password or master key.");
+      }
+
+      if (migrationNeeded) {
+        await supabase
+          .from("profiles")
+          .update({ password: inputHash })
+          .eq("username", cleanUsername);
+      }
+
+      recordAttempt(true);
+      onLogin(data.username || cleanUsername);
     } catch (err: any) {
       console.error("Auth Error:", err);
       if (!navigator.onLine || err.message?.includes("fetch")) {
-        // Offline Fallback - Use LocalStorage blindly if key exists
         if (localStorage.getItem(`cabal_data_${cleanUsername}`)) {
           onLogin(cleanUsername);
         } else {
-          setError("System Offline & No Local Cache.");
+          setError("System offline and no local account cache found.");
         }
       } else {
-        setError(err.message || "Access Denied.");
+        setError(err.message || "Unable to continue.");
       }
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col items-center justify-center relative overflow-hidden p-4">
-      {/* Background Ambience */}
+    <div className="min-h-screen bg-gray-50 dark:bg-black flex flex-col items-center justify-center relative overflow-hidden px-4 py-6 sm:px-6 sm:py-10">
       <div className="absolute inset-0 bg-gradient-to-t from-blue-50 via-transparent to-transparent dark:from-system-blue/10 pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="w-full max-w-md z-10"
+        className="w-full max-w-lg z-10"
       >
-        <div className="flex flex-col items-center mb-8">
-          <Logo className="mb-4 scale-125" />
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tighter italic text-center">
+        <div className="flex flex-col items-center mb-6 sm:mb-8">
+          <Logo className="mb-4 scale-110 sm:scale-125" />
+          <h1 className="text-3xl sm:text-4xl font-black text-gray-900 dark:text-white tracking-tighter italic text-center">
             EXECUTION <span className="text-system-blue">CABAL</span>
           </h1>
           <div className="flex items-center gap-2 mt-2">
             <div className="h-[1px] w-8 bg-system-blue"></div>
-            <span className="text-[10px] font-mono text-system-blue tracking-[0.3em]">
-              SYSTEM AUTHENTICATION
+            <span className="text-[10px] sm:text-xs font-mono text-system-blue tracking-[0.3em] uppercase">
+              Welcome
             </span>
             <div className="h-[1px] w-8 bg-system-blue"></div>
           </div>
+          <p className="mt-3 max-w-md text-center text-sm sm:text-base text-gray-600 dark:text-gray-400">
+            A simple sign up. Pick a username, add a password or master key, and get into the system.
+          </p>
         </div>
 
-        <div className="bg-white dark:bg-system-panel/80 border border-gray-200 dark:border-gray-800 backdrop-blur-md p-8 relative overflow-hidden shadow-lg">
-          {/* Corner Accents */}
+        <div className="bg-white dark:bg-system-panel/80 border border-gray-200 dark:border-gray-800 backdrop-blur-md p-5 sm:p-8 relative overflow-hidden shadow-lg rounded-2xl">
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-system-blue"></div>
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-system-blue"></div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="mb-5">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+              {isRegistering ? "Create your account" : "Sign in"}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {isRegistering
+                ? "Keep it simple and use details you will remember."
+                : "Use your username and password or master key to continue."}
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="flex flex-col gap-4 sm:gap-5">
             <div>
-              <label className="text-[10px] font-mono text-gray-500 uppercase mb-1 block">
-                Agent Codename
+              <label className="text-[11px] font-mono text-gray-500 uppercase mb-1.5 block tracking-wider">
+                Username
               </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 p-3 text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors font-mono"
-                placeholder="ENTER ID..."
+                className="w-full rounded-xl bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 px-4 py-3.5 text-base text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors"
+                placeholder="Choose a username"
                 required
               />
             </div>
@@ -254,40 +248,42 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                 animate={{ height: "auto", opacity: 1 }}
                 className="overflow-hidden"
               >
-                <label className="text-[10px] font-mono text-gray-500 uppercase mb-1 block">
-                  Secure Email Uplink
+                <label className="text-[11px] font-mono text-gray-500 uppercase mb-1.5 block tracking-wider">
+                  Email
+                  <span className="ml-2 text-[10px] normal-case tracking-normal text-gray-400">
+                    Optional
+                  </span>
                 </label>
                 <input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 p-3 text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors font-mono"
-                  placeholder="AGENT@CABAL.COM"
-                  required
+                  className="w-full rounded-xl bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 px-4 py-3.5 text-base text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors"
+                  placeholder="you@example.com"
                 />
               </motion.div>
             )}
 
             <div>
-              <label className="text-[10px] font-mono text-gray-500 uppercase mb-1 block">
-                Master Key / Password
+              <label className="text-[11px] font-mono text-gray-500 uppercase mb-1.5 block tracking-wider">
+                Password / Master Key
               </label>
               <div className="relative">
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 p-3 pr-10 text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors font-mono"
-                  placeholder="•••••••• or MASTER-KEY"
+                  className="w-full rounded-xl bg-gray-50 dark:bg-black/50 border border-gray-300 dark:border-gray-700 px-4 py-3.5 pr-12 text-base text-gray-900 dark:text-white focus:border-system-blue outline-none transition-colors"
+                  placeholder="Enter your password or master key"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-system-blue"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-system-blue"
                   tabIndex={-1}
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
@@ -296,7 +292,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               <motion.div
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
-                className="text-system-red text-xs font-mono flex items-center gap-2 bg-red-50 dark:bg-red-900/10 p-2 border border-red-200 dark:border-red-900/50"
+                className="text-system-red text-xs sm:text-sm font-mono flex items-center gap-2 bg-red-50 dark:bg-red-900/10 p-3 rounded-xl border border-red-200 dark:border-red-900/50"
               >
                 <ShieldAlert size={12} />
                 {error}
@@ -306,15 +302,13 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
             <button
               type="submit"
               disabled={loading}
-              className="mt-4 bg-system-blue text-white dark:text-black font-bold uppercase py-3 hover:bg-blue-600 dark:hover:bg-white transition-colors flex items-center justify-center gap-2 group relative overflow-hidden"
+              className="mt-2 sm:mt-4 rounded-xl bg-system-blue text-white dark:text-black font-bold py-3.5 sm:py-4 hover:bg-blue-600 dark:hover:bg-white transition-colors flex items-center justify-center gap-2 group relative overflow-hidden text-sm sm:text-base"
             >
               {loading ? (
                 <Loader2 className="animate-spin" size={18} />
               ) : (
                 <>
-                  <span>
-                    {isRegistering ? "Initialize Agent" : "Access System"}
-                  </span>
+                  <span>{isRegistering ? "Create Account" : "Sign In"}</span>
                   <ArrowRight
                     size={16}
                     className="group-hover:translate-x-1 transition-transform"
@@ -330,24 +324,22 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
                 setIsRegistering(!isRegistering);
                 setError("");
               }}
-              className="text-gray-500 hover:text-system-blue text-xs font-mono flex items-center gap-2 transition-colors"
+              className="text-gray-500 hover:text-system-blue text-sm font-mono flex items-center gap-2 transition-colors text-center"
             >
               {isRegistering ? (
                 <>
-                  Already have access? <LogIn size={12} /> Login
+                  Already have an account? <LogIn size={12} /> Sign in
                 </>
               ) : (
                 <>
-                  New candidate? <UserPlus size={12} /> Register
+                  New here? <UserPlus size={12} /> Create account
                 </>
               )}
             </button>
           </div>
-
-          {/* Trial Gift Badge Removed as per protocol */}
         </div>
 
-        <div className="text-center mt-6 opacity-30">
+        <div className="text-center mt-6 opacity-40">
           <p className="text-[10px] font-mono text-gray-400">
             SECURE CONNECTION ESTABLISHED
           </p>
