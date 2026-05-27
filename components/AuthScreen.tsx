@@ -335,16 +335,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLogin }) => {
               )}
             </button>
           </div>
-        </div>
-
-        <div className="text-center mt-6 opacity-40">
-          <p className="text-[10px] font-mono text-gray-400">
-            SECURE CONNECTION ESTABLISHED
-          </p>
-          <p className="text-[10px] font-mono text-gray-600 dark:text-gray-600">
-            V.1.0.6 // MULTI_DB_PROTOCOL
-          </p>
-        </div>
+</div>
       </motion.div>
     </div>
   );

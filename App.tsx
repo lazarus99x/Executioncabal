@@ -2292,9 +2292,6 @@ const App: React.FC = () => {
           <Loader2 className="animate-spin" />
           <span>ESTABLISHING SECURE UPLINK...</span>
         </div>
-        <p className="absolute bottom-10 text-xs text-gray-600 font-mono">
-          EXECUTION CABAL PROTOCOL V1.0
-        </p>
       </div>
     );
 
