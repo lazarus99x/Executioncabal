@@ -394,27 +394,26 @@ export const verifyProof = async (
     },
     {
       text: `
-          ROLE: You are the 'EXECUTIONER' System (System Judge). 
-          TASK: Verify if the attached image is PROOF of the Mission Objective.
+          ROLE: You are the 'EXECUTIONER' System (Task Verifier). 
+          TASK: Check if the attached image matches the user's completed task.
           
           MISSION OBJECTIVE: "${taskDescription}"
           USER NOTES: "${proofText}"
           
-          3. STRICT VERIFICATION PROTOCOL:
-             - SKEPTICISM REQUIRED: You are a strict auditor. Do not give the benefit of the doubt.
-             - EVIDENCE MUST BE CLEAR: The image must clearly verify the task.
-             - REJECT GENERIC IMAGES: If the image is too vague, dark, generic (e.g. a random wall, ceiling), or ambiguous, REJECT IT.
-             - REJECT UNRELATED IMAGES: If the image does not visibly contain elements directly related to the objective "${taskDescription}", REJECT IT.
-             - EXAMPLES:
-               - Task: "Read Chapter 1". Image: Open book. -> VALID.
-               - Task: "Read Chapter 1". Image: A selfie/face. -> INVALID.
-               - Task: "Gym". Image: Gym equipment/weights. -> VALID.
-               - Task: "Gym". Image: A bed or laptop. -> INVALID.
+          VERIFICATION RULES:
+          - Be realistic and reasonable. If a screenshot or photo shows clear evidence the task was done, accept it.
+          - Task: "Call Solomon by 6" → Screenshot of call log showing Solomon around that time → ACCEPT.
+          - Task: "Send email to client" → Screenshot of sent email → ACCEPT.
+          - Task: "Go to gym" → Photo of you at the gym or gym equipment → ACCEPT.
+          - Task: "Read Chapter 1 of book" → Photo of open book on that chapter → ACCEPT.
+          - Only reject if: image is unrelated to the task, or clearly fake/manipulated.
+          - DO NOT ask for additional evidence like timestamps, before/after photos, or multiple angles unless the image provided is genuinely unclear.
+          - If the image reasonably matches the task description, accept it.
+          - Judge based on common sense, not technicalities.
 
           OUTPUT JSON:
           - valid: boolean (true = Verified, false = Rejected)
-          - message: A direct, short explanation. 
-          - missing_criteria: List of missing elements if invalid.
+          - message: A short explanation.
           - statIncreases: Award 1 point to RELEVANT stat if valid.
         `,
     },
@@ -433,10 +432,6 @@ export const verifyProof = async (
           properties: {
             valid: { type: Type.BOOLEAN },
             message: { type: Type.STRING },
-            missing_criteria: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-            },
             statIncreases: {
               type: Type.OBJECT,
               properties: {

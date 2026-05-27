@@ -342,9 +342,8 @@ const App: React.FC = () => {
             const paidAmount = data.amount; // Amount in smallest unit (kobo for NGN, cents for USD)
             const payCurrency = data.currency; // "NGN" or "USD"
 
-            // Paystack returns amounts in kobo (NGN) or cents (USD)
-            const paidMajor =
-              payCurrency === "NGN" ? paidAmount / 100 : paidAmount / 100;
+            // Paystack API already returns amounts in main units (naira/dollars)
+            const paidMajor = paidAmount;
 
             const PRICE_NGN = 2500;
             const PRICE_USD = 5.0;

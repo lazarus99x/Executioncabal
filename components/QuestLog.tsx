@@ -178,6 +178,7 @@ const QuestCard: React.FC<{
   const [proofImage, setProofImage] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -366,9 +367,27 @@ const QuestCard: React.FC<{
         </div>
       )}
 
-      <p className="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-3 font-sans leading-relaxed line-clamp-3 md:line-clamp-none">
+      <p className="text-[11px] md:text-sm text-gray-500 dark:text-gray-400 mb-2 font-sans leading-relaxed">
         {quest.description}
       </p>
+
+      {quest.requirements && quest.requirements.length > 0 && isInteractive && (
+        <div className="mb-3">
+          <div className="text-[10px] font-mono uppercase tracking-wider text-gray-400 mb-1.5">
+            Proof Requirements
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {quest.requirements.map((req, i) => (
+              <span
+                key={i}
+                className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700"
+              >
+                {req}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {quest.lastVerificationMessage &&
         quest.verificationAttempts > 0 &&
@@ -435,9 +454,9 @@ const QuestCard: React.FC<{
                 <Play size={16} className="fill-current" /> INITIATE
               </button>
               <button
-                onClick={onDelete}
+                onClick={() => setShowDeleteConfirm(true)}
                 className="px-4 md:px-6 py-3 md:py-4 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors active:scale-95 flex items-center justify-center"
-                title="Delete Directive (-100 Action XP)"
+                title="Forfeit Directive (-100 Action XP)"
               >
                 <Trash2 size={18} />
               </button>
@@ -550,7 +569,7 @@ const QuestCard: React.FC<{
               </button>
             )}
             <button
-              onClick={onDelete}
+              onClick={() => setShowDeleteConfirm(true)}
               className="text-xs text-red-500 hover:text-red-700 dark:hover:text-red-400 flex items-center gap-1"
             >
               <Trash2 size={12} /> DELETE RECORD
@@ -558,6 +577,57 @@ const QuestCard: React.FC<{
           </div>
         </div>
       )}
+
+      {/* ── Delete Confirmation ── */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl"
+            onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-xl p-4 mx-3 max-w-xs w-full shadow-2xl border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-4">
+                <div className="text-red-500 text-lg mb-2">
+                  <AlertCircle size={32} className="mx-auto" />
+                </div>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+                  Forfeit this Directive?
+                </h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                  Are you sure you want to forfeit this directive? You will lose{' '}
+                  <span className="font-bold text-red-500">{quest.xpReward || 50} XP</span>.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  NO, KEEP IT
+                </button>
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    onDelete();
+                  }}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  YES, FORFEIT
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
@@ -638,7 +708,7 @@ const QuestLog: React.FC<QuestLogProps> = ({
   const [isReviving, setIsReviving] = useState(false);
 
   // Chaos Mode State
-  const [isChaosMode, setIsChaosMode] = useState(false);
+  const [isChaosMode, setIsChaosMode] = useState(true);
   const [proposedPlan, setProposedPlan] = useState<ProposedTaskPlan | null>(null);
   const [isProcessingChaos, setIsProcessingChaos] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
