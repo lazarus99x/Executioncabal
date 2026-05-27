@@ -428,17 +428,19 @@ export const verifyProof = async (
               MISSION OBJECTIVE: "${taskDescription}"
               USER NOTES: "${proofText}"
               
-              STRICT VERIFICATION PROTOCOL:
-              - SKEPTICISM REQUIRED. Reject vague or generic images.
-              - EXAMPLES: Task: "Read Chapter 1". Image: Open book -> VALID. Image: A selfie -> INVALID.
-              - RPG STAT REWARD RULE: If valid, total stat points across all five stats must stay between 5 and 7 inclusive.
-              - Keep stat rewards modest. Never output double-digit totals or huge spikes.
+              VERIFICATION RULES:
+              - Be realistic and reasonable. If a screenshot or photo clearly shows the task was done, accept it.
+              - Task: "Call Solomon by 6" → Screenshot of call log showing Solomon → ACCEPT.
+              - Task: "Send email" → Screenshot of sent email → ACCEPT.
+              - Task: "Go to gym" → Photo at gym or with equipment → ACCEPT.
+              - Only reject if image is completely unrelated or clearly fake.
+              - DO NOT demand additional proof like timestamps or before/after photos unless the image is genuinely unclear.
+              - Judge based on common sense, not technicalities.
               
               Output JSON:
               {
                 "valid": boolean,
-                "message": "explanation",
-                "missing_criteria": ["element1"],
+                "message": "short explanation",
                 "statIncreases": { "strength": 0, "agility": 0, "intelligence": 0, "vitality": 0, "perception": 0 }
               }
               `,

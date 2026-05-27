@@ -1819,8 +1819,7 @@ const App: React.FC = () => {
               const updated = {
                 ...q,
                 verificationAttempts: att,
-                lastVerificationMessage:
-                  ver.missingCriteria?.join(", ") || ver.message,
+                lastVerificationMessage: ver.message,
               };
               if (currentUser) upsertQuest(updated, currentUser);
               return updated;
