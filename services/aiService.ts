@@ -409,7 +409,7 @@ export const verifyProof = async (
     const response = await callAnthropicProxy({
       model: DEFAULT_MODEL,
       max_tokens: 1024,
-      system: "You are the EXECUTIONER System. Verify images strictly. Tone: Brutal, short, direct. Simple English only. NO BIG GRAMMARS. Output JSON only.",
+      system: "You are a PRACTICAL verifier for EXECUTION CABAL. Trust but verify. Be LENIENT, not strict. If the image plausibly matches the task, ACCEPT it. Simple English. Short responses. Output JSON only.",
       messages: [
         {
           role: "user",
@@ -425,22 +425,25 @@ export const verifyProof = async (
             {
               type: "text",
               text: `
-              MISSION OBJECTIVE: "${taskDescription}"
-              USER NOTES: "${proofText}"
+              TASK: "${taskDescription}"
+              USER'S PROOF NOTE: "${proofText}"
               
-              VERIFICATION RULES:
-              - Be realistic and reasonable. If a screenshot or photo clearly shows the task was done, accept it.
-              - Task: "Call Solomon by 6" → Screenshot of call log showing Solomon → ACCEPT.
-              - Task: "Send email" → Screenshot of sent email → ACCEPT.
-              - Task: "Go to gym" → Photo at gym or with equipment → ACCEPT.
-              - Only reject if image is completely unrelated or clearly fake.
-              - DO NOT demand additional proof like timestamps or before/after photos unless the image is genuinely unclear.
-              - Judge based on common sense, not technicalities.
+              VERIFICATION RULES (BE LENIENT):
+              - If the image LOOKS LIKE it shows the task being done, ACCEPT IT.
+              - DO NOT over-analyze. DO NOT demand timestamps, metadata, or before/after photos.
+              - Task: "Access admin dashboard" → Screenshot showing admin dashboard with name visible → ACCEPT, no questions asked.
+              - Task: "Call [name]" → Screenshot of call log with that name → ACCEPT.
+              - Task: "Send email" → Screenshot of sent folder → ACCEPT.
+              - Task: "Go to gym" → Photo at a gym or with equipment → ACCEPT.
+              - DO NOT look for watermarks, timestamps, EXIF data, or perfect framing.
+              - Only reject if image is TOTALLY UNRELATED or blank.
+              - When in doubt, GIVE BENEFIT OF DOUBT and ACCEPT.
+              - The user did the work. Just check if image makes sense as proof.
               
               Output JSON:
               {
                 "valid": boolean,
-                "message": "short explanation",
+                "message": "short explanation (1 sentence)",
                 "statIncreases": { "strength": 0, "agility": 0, "intelligence": 0, "vitality": 0, "perception": 0 }
               }
               `,
