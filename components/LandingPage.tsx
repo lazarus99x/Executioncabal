@@ -53,6 +53,22 @@ const LandingPage: React.FC<LandingPageProps> = ({
           </span>
         </div>
         <div className="flex items-center gap-2 md:gap-3">
+          <a
+            href="https://executioncabalblog.netlify.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors hidden sm:inline-block"
+          >
+            Guide
+          </a>
+          <a
+            href="https://executioncabalblog.netlify.app/create-a-personal-accountability-system/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors hidden sm:inline-block"
+          >
+            How to Use
+          </a>
           {onToggleCurrency && (
             <button
               onClick={onToggleCurrency}
