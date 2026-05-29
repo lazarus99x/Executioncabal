@@ -16,6 +16,57 @@ const PORT = 3000;
 const VITE_PORT = 5173;
 
 app.use(cors());
+
+// --- Security Headers (Enterprise Grade) ---
+app.use((req, res, next) => {
+  // Content Security Policy - prevents XSS, data injection, and unauthorized resource loading
+  res.setHeader(
+    "Content-Security-Policy",
+    "default-src 'self'; " +
+      "script-src 'self' 'unsafe-inline' https://js.paystack.co; " +
+      "style-src 'self' 'unsafe-inline'; " +
+      "img-src 'self' data: blob: https:; " +
+      "font-src 'self' data:; " +
+      "connect-src 'self' https://tufltrankwmsxbuljosq.supabase.co https://api.paystack.co; " +
+      "frame-src https://js.paystack.co; " +
+      "object-src 'none'; " +
+      "base-uri 'self'; " +
+      "form-action 'self'"
+  );
+
+  // Prevent MIME type sniffing
+  res.setHeader("X-Content-Type-Options", "nosniff");
+
+  // Prevent clickjacking
+  res.setHeader("X-Frame-Options", "DENY");
+
+  // Enable HSTS (HTTP Strict Transport Security) - forces HTTPS for 1 year
+  res.setHeader(
+    "Strict-Transport-Security",
+    "max-age=31536000; includeSubDomains; preload"
+  );
+
+  // Referrer policy - minimal referrer info
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+
+  // Permissions policy - restrict browser features
+  res.setHeader(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+  );
+
+  // Prevent cross-origin opens from leaking window reference
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+
+  // Prevent cross-origin resource sharing of sensitive resources
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+
+  // Suppress the X-Powered-By header
+  res.setHeader("X-Powered-By", "");
+
+  next();
+});
+
 app.use(express.json());
 
 // --- Cron Jobs for Reminders ---

@@ -27,6 +27,8 @@ import SettingsHub from "./components/SettingsHub";
 import Reports from "./components/Reports";
 import Profile from "./components/Profile";
 import LandingPage from "./components/LandingPage";
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import CookieConsent from "./components/CookieConsent";
 import PaymentModal from "./components/PaymentModal";
 import Checkout from "./components/Checkout";
 import AdminDashboard from "./components/AdminDashboard";
@@ -40,6 +42,7 @@ import {
   generateDailyChallenge,
   verifyQuestEdit,
 } from "./services/aiService";
+import SecurityShield from "./services/securityShield";
 import {
   LayoutDashboard,
   Scroll,
@@ -244,6 +247,11 @@ const getCachedGeoInfo = async () => {
 };
 
 const App: React.FC = () => {
+  // Initialize security shield (anti-inspect, console protection)
+  React.useEffect(() => {
+    SecurityShield.init();
+  }, []);
+
   // Auth State
   const [currentUser, setCurrentUser] = useState<string | null>(
     localStorage.getItem("cabal_current_user")
@@ -251,6 +259,7 @@ const App: React.FC = () => {
   const [showLanding, setShowLanding] = useState(
     !localStorage.getItem("cabal_current_user")
   );
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   // Theme State
   const [theme, setTheme] = useState<"dark" | "light">(() => {
@@ -2271,10 +2280,15 @@ const App: React.FC = () => {
     }
   };
 
+  // Privacy Policy page (overrides landing & auth)
+  if (showPrivacy)
+    return <PrivacyPolicy onBack={() => setShowPrivacy(false)} />;
+
   if (showLanding && !currentUser)
     return (
       <LandingPage
         onGetStarted={() => setShowLanding(false)}
+        onShowPrivacy={() => setShowPrivacy(true)}
         currency={currency}
         onToggleCurrency={toggleCurrency}
       />
@@ -2757,6 +2771,8 @@ const App: React.FC = () => {
           openTrigger={chatOpenTrigger}
         />
       )}
+      {/* Enterprise Cookie Consent Banner */}
+      <CookieConsent />
     </div>
   );
 };

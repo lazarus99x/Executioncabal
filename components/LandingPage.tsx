@@ -22,6 +22,7 @@ import { Currency } from "../types";
 
 interface LandingPageProps {
   onGetStarted: () => void;
+  onShowPrivacy?: () => void;
   currency?: Currency;
   onToggleCurrency?: () => void;
 }
@@ -57,7 +58,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             href="https://executioncabalblog.netlify.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors hidden sm:inline-block"
+            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors inline-block"
           >
             Guide
           </a>
@@ -65,7 +66,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             href="https://executioncabalblog.netlify.app/create-a-personal-accountability-system/"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors hidden sm:inline-block"
+            className="text-white/60 hover:text-white text-[10px] md:text-xs font-medium tracking-wide transition-colors inline-block"
           >
             How to Use
           </a>
@@ -647,15 +648,53 @@ const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Legal Footer */}
       <footer className="bg-black py-6 text-center border-t border-white/10 relative z-20">
-        <p className="text-gray-500 font-mono text-xs uppercase tracking-widest">
-          &copy; 2026 Execution Cabal. All rights reserved.
-        </p>
-        <a
-          href="#privacy-policy"
-          className="mt-3 inline-block text-[11px] font-mono uppercase tracking-widest text-indigo-400 hover:text-indigo-300"
-        >
-          Privacy & Data Policy
-        </a>
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-6 mb-3">
+            <a
+              href="https://executioncabalblog.netlify.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-mono uppercase tracking-widest text-gray-500 hover:text-indigo-400 transition-colors"
+            >
+              Guide
+            </a>
+            <a
+              href="https://executioncabalblog.netlify.app/create-a-personal-accountability-system/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-mono uppercase tracking-widest text-gray-500 hover:text-indigo-400 transition-colors"
+            >
+              How to Use
+            </a>
+            {onShowPrivacy ? (
+              <button
+                onClick={onShowPrivacy}
+                className="text-[11px] font-mono uppercase tracking-widest text-gray-500 hover:text-indigo-400 transition-colors"
+              >
+                Privacy & Data Policy
+              </button>
+            ) : (
+              <a
+                href="#privacy-policy"
+                className="text-[11px] font-mono uppercase tracking-widest text-gray-500 hover:text-indigo-400 transition-colors"
+              >
+                Privacy & Data Policy
+              </a>
+            )}
+            <button
+              onClick={() => {
+                localStorage.removeItem("ec_cookie_consent");
+                window.location.reload();
+              }}
+              className="text-[11px] font-mono uppercase tracking-widest text-gray-500 hover:text-indigo-400 transition-colors"
+            >
+              Cookie Preferences
+            </button>
+          </div>
+          <p className="text-gray-600 font-mono text-[10px] uppercase tracking-widest">
+            &copy; 2026 Execution Cabal. All rights reserved.
+          </p>
+        </div>
       </footer>
     </div>
   );
