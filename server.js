@@ -19,15 +19,16 @@ app.use(cors());
 
 // --- Security Headers (Enterprise Grade) ---
 app.use((req, res, next) => {
-  // Content Security Policy - prevents XSS, data injection, and unauthorized resource loading
+  // Content Security Policy - relaxed for CDN-based SPA
+  // The app loads React, framer-motion, lucide-react, supabase from esm.sh
   res.setHeader(
     "Content-Security-Policy",
     "default-src 'self'; " +
-      "script-src 'self' 'unsafe-inline' https://js.paystack.co; " +
-      "style-src 'self' 'unsafe-inline'; " +
+      "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://esm.sh https://js.paystack.co; " +
+      "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://esm.sh; " +
       "img-src 'self' data: blob: https:; " +
-      "font-src 'self' data:; " +
-      "connect-src 'self' https://tufltrankwmsxbuljosq.supabase.co https://api.paystack.co; " +
+      "font-src 'self' data: https://esm.sh; " +
+      "connect-src 'self' https://tufltrankwmsxbuljosq.supabase.co https://api.paystack.co https://esm.sh; " +
       "frame-src https://js.paystack.co; " +
       "object-src 'none'; " +
       "base-uri 'self'; " +

@@ -29,6 +29,7 @@ interface LandingPageProps {
 
 const LandingPage: React.FC<LandingPageProps> = ({
   onGetStarted,
+  onShowPrivacy,
   currency = "USD",
   onToggleCurrency,
 }) => {

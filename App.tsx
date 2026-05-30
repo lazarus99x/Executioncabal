@@ -2286,14 +2286,22 @@ const App: React.FC = () => {
 
   if (showLanding && !currentUser)
     return (
-      <LandingPage
-        onGetStarted={() => setShowLanding(false)}
-        onShowPrivacy={() => setShowPrivacy(true)}
-        currency={currency}
-        onToggleCurrency={toggleCurrency}
-      />
+      <>
+        <LandingPage
+          onGetStarted={() => setShowLanding(false)}
+          onShowPrivacy={() => setShowPrivacy(true)}
+          currency={currency}
+          onToggleCurrency={toggleCurrency}
+        />
+        <CookieConsent />
+      </>
     );
-  if (!currentUser) return <AuthScreen onLogin={handleLogin} />;
+  if (!currentUser) return (
+    <>
+      <AuthScreen onLogin={handleLogin} />
+      <CookieConsent />
+    </>
+  );
   if (isSystemInitializing)
     return (
       <div className="h-screen w-screen bg-black flex flex-col items-center justify-center relative overflow-hidden">

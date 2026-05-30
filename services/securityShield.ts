@@ -54,50 +54,18 @@ const SecurityShield = {
     );
   },
 
-  // --- Console noise generator (makes DevTools console spammy) ---
+  // --- Console protection (non-breaking) ---
   _obscureConsole() {
     const originalLog = console.log;
-    const originalInfo = console.info;
-    const originalWarn = console.warn;
-    const originalError = console.error;
 
-    const styles = [
-      "font-size: 1px; color: transparent;",
-      "background: #000; color: #000; font-size: 0px;",
-    ];
-
-    const messages = [
-      "%c🔒 This environment is protected",
-      "%c⚠️ Unauthorized access is monitored",
-      "%c🚫 Console access restricted",
-      "%c🛡️ Security protocols active",
-    ];
-
+    // Don't override console methods - just prepend a warning on log calls
     console.log = function (...args) {
-      const rand = Math.floor(Math.random() * messages.length);
-      originalLog.call(console, messages[rand], styles[rand % styles.length]);
-      // Forward 1 in 10 legitimate calls
-      if (Math.random() < 0.1 && args.length > 0) {
-        originalLog.call(console, ...args);
-      }
-    };
-
-    console.info = function (...args) {
-      originalWarn.call(
+      originalLog.call(
         console,
-        "%cℹ️ Info logging disabled for security",
-        "color: #666; font-style: italic;"
+        "%c[EXECUTION CABAL]",
+        "color: #6366f1; font-weight: bold;",
+        ...args
       );
-    };
-
-    console.warn = function (...args) {
-      if (args[0]?.toString()?.includes("React")) {
-        originalWarn.call(console, ...args);
-      }
-    };
-
-    console.error = function (...args) {
-      originalError.call(console, ...args);
     };
   },
 
