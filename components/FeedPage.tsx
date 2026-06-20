@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Eye, Crown, Check, Play, Activity, ShoppingBag, Sparkles, Swords,
-  Send, Share2, MessageSquare,
+  Send, Share2, MessageSquare, Users, Trash2, Image,
 } from 'lucide-react';
 import { ExecutionActivity, Player, StoreItem, Squad } from '../types';
 import { RANK_COLORS } from '../constants';
@@ -41,16 +41,17 @@ interface FeedPageProps {
   onViewSquad?: (squadId: string) => void;
   onAdminPost?: (message: string) => void;
   onShareProtocol?: () => void;
+  onDeleteActivity?: (id: string) => void;
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({
   activities, squads, storeItems, currentUsername, player, onViewSquad,
-  onAdminPost, onShareProtocol,
+  onAdminPost, onShareProtocol, onDeleteActivity,
 }) => {
   const [adminInput, setAdminInput] = useState('');
   const sorted = [...activities].sort((a, b) => b.timestamp - a.timestamp);
   const featuredItems = storeItems.slice(0, 3);
-  const recentSquads = squads.filter(s => s.goals.filter(g => g.status === 'COMPLETED').length > 0).slice(0, 3);
+  const activeTeams = squads.filter(s => s.members.length > 0).slice(0, 5);
 
   function handleAdminPost() {
     if (!adminInput.trim() || !onAdminPost) return;
@@ -182,7 +183,15 @@ const FeedPage: React.FC<FeedPageProps> = ({
                           </span>
                         </div>
                         <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{activity.message}</p>
+                      {activity.imageUrl && (
+                        <img src={activity.imageUrl} alt="Protocol Card" className="mt-2 rounded-lg border border-gray-700 w-full max-w-[240px] h-auto cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(activity.imageUrl, '_blank')} />
+                      )}
                       </div>
+                      {isCurrentUser && onDeleteActivity && (
+                        <button onClick={() => onDeleteActivity(activity.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all shrink-0 p-1" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </motion.div>
                   );
                 })}
@@ -193,27 +202,44 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Active Squads */}
-          {recentSquads.length > 0 && (
-            <div className="bg-[#0d0d0d] border border-gray-800 rounded-xl p-4">
+          {/* Active Teams — EXPANDED SECTION */}
+          {activeTeams.length > 0 && (
+            <div className="bg-[#0d0d0d] border border-cyan-800/40 rounded-xl p-4">
               <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-400 uppercase tracking-widest mb-3">
-                <Swords size={12} /> Active Squads
+                <Users size={12} /> Active Teams
               </div>
               <div className="space-y-2">
-                {recentSquads.map((squad) => (
+                {activeTeams.map((team) => (
                   <div
-                    key={squad.id}
-                    onClick={() => onViewSquad?.(squad.id)}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-gray-900/50 hover:bg-gray-900 cursor-pointer transition-colors"
+                    key={team.id}
+                    className="flex flex-col gap-1.5 p-2 rounded-lg bg-gray-900/50 hover:bg-gray-900 transition-colors"
                   >
-                    <Swords size={14} className="text-cyan-400 flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{squad.name}</p>
-                      <p className="text-[10px] font-mono text-gray-500">{squad.members.length} members</p>
+                    <div className="flex items-center gap-2">
+                      <Swords size={14} className="text-cyan-400 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-white truncate">{team.name}</p>
+                        <p className="text-[10px] font-mono text-gray-500">
+                          {team.members.filter(m => !m.userId.startsWith('pending_')).length} members
+                        </p>
+                        <p className="text-[9px] font-mono text-gray-600 truncate">
+                          Admin: {team.adminName}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      onClick={() => onViewSquad?.(team.id)}
+                      className="w-full mt-0.5 flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-wider py-1.5 rounded-md bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600/40 transition-colors"
+                    >
+                      <Eye size={10} /> View Team
+                    </button>
                   </div>
                 ))}
               </div>
+              {squads.length > 5 && (
+                <p className="text-[9px] font-mono text-gray-600 text-center mt-2">
+                  +{squads.length - 5} more teams
+                </p>
+              )}
             </div>
           )}
 

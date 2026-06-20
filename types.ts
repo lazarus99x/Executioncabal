@@ -253,12 +253,14 @@ export interface SystemLog {
 
 export interface ExecutionActivity {
   id: string;
+  actionType: "TASK_START" | "TASK_COMPLETE" | "TASK_PUBLISHED" | "RANK_UP" | "TASK_FAIL" | "SYSTEM" | "PROTOCOL_SHARE";
+  message: string;
   username: string;
   rank: Rank;
-  actionType: "TASK_START" | "TASK_COMPLETE" | "TASK_FAIL" | "RANK_UP" | "SYSTEM" | "TASK_PUBLISHED";
-  message: string;
-  taskTitle?: string;
   timestamp: number;
+  squadId?: string;
+  taskTitle?: string;
+  imageUrl?: string;
 }
 
 export type ViewType =

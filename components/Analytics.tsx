@@ -148,7 +148,7 @@ interface AnalyticsProps {
   transactions?: Transaction[];
   onUseItem?: (instanceId: string, itemId: string) => void;
   currency?: Currency;
-  onShareToFeed?: () => void;
+  onShareToFeed?: (imageDataUrl?: string) => void;
 }
 
 const Analytics: React.FC<AnalyticsProps> = ({
@@ -807,7 +807,13 @@ const Analytics: React.FC<AnalyticsProps> = ({
                                  Export & Share
                              </button>
                              {onShareToFeed && (
-                               <button onClick={() => { onShareToFeed(); setShowShareModal(false); }} className="flex-[1.2] bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg text-[11px] font-mono font-bold uppercase transition flex items-center justify-center gap-1.5">
+                               <button onClick={async () => { 
+                                 const info = await generateGraphicInfo();
+                                 if (info) {
+                                   onShareToFeed(info.dataUrl);
+                                   setShowShareModal(false);
+                                 }
+                               }} className="flex-[1.2] bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg text-[11px] font-mono font-bold uppercase transition flex items-center justify-center gap-1.5">
                                  <Activity size={13} /> Share to Feed
                                </button>
                              )}

@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, UserPlus, LogOut, Shield, Target,
   X, Check, Crown, ArrowRight, Coins,
-  BarChart3, MessageSquare, Columns, Send, Trophy,
+  BarChart3, MessageSquare, Columns, Send, Trophy, Search, XCircle,
 } from 'lucide-react';
 import { Squad, SquadMember, SquadGoal, Player, Rank } from '../types';
 import { RANK_COLORS } from '../constants';
@@ -33,6 +33,10 @@ interface TeamHubProps {
   onUpdateGoalStatus: (teamId: string, goalId: string, status: KanbanStatus) => void;
   onPostToTeamFeed: (teamId: string, message: string) => void;
   onSetPlayer: (player: Player) => void;
+  // New props for search & invite
+  availableUsers?: string[];
+  onInviteUser?: (teamId: string, username: string) => void;
+  onRemoveInvite?: (teamId: string, username: string) => void;
 }
 
 function generateId(): string {
@@ -64,6 +68,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
   onRequestJoin, onApproveMember, onRejectMember,
   onLeaveTeam, onAssignGoal, onCompleteGoal, onFailGoal,
   onUpdateGoalStatus, onPostToTeamFeed, onSetPlayer,
+  availableUsers = [], onInviteUser, onRemoveInvite,
 }) => {
   // --- UI State ---
   const [showCreate, setShowCreate] = useState(false);
@@ -81,6 +86,24 @@ const TeamHub: React.FC<TeamHubProps> = ({
   const [kanbanStatuses, setKanbanStatuses] = useState<Record<string, KanbanStatus>>({});
   const [dragOverCol, setDragOverCol] = useState<string | null>(null);
   const [dragItemId, setDragItemId] = useState<string | null>(null);
+  // State for search & invite
+  const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
+  const [showSearch, setShowSearch] = useState<Record<string, boolean>>({});
+  const [invitedUsers, setInvitedUsers] = useState<Record<string, string[]>>({});
+  const searchRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      Object.entries(searchRefs.current).forEach(([teamId, ref]) => {
+        if (ref && !ref.contains(e.target as Node)) {
+          setShowSearch(prev => ({ ...prev, [teamId]: false }));
+        }
+      });
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // --- Derived ---
   const userTeams = teams.filter(t =>
@@ -119,6 +142,34 @@ const TeamHub: React.FC<TeamHubProps> = ({
     setTeamFeeds(prev => ({ ...prev, [teamId]: [...(prev[teamId] || []), entry] }));
     onPostToTeamFeed(teamId, feedMessage.trim());
     setFeedMessage('');
+  };
+
+  // Invite handlers
+  const handleInviteUser = (teamId: string, username: string) => {
+    setInvitedUsers(prev => ({
+      ...prev,
+      [teamId]: [...(prev[teamId] || []), username],
+    }));
+    onInviteUser?.(teamId, username);
+    setSearchQuery(prev => ({ ...prev, [teamId]: '' }));
+    setShowSearch(prev => ({ ...prev, [teamId]: false }));
+  };
+
+  const handleRemoveInvite = (teamId: string, username: string) => {
+    setInvitedUsers(prev => ({
+      ...prev,
+      [teamId]: (prev[teamId] || []).filter(u => u !== username),
+    }));
+    onRemoveInvite?.(teamId, username);
+  };
+
+  // Get available users for a team (not already member, not already invited)
+  const getFilteredAvailable = (team: Squad): string[] => {
+    const memberUsernames = team.members.map(m => m.username);
+    const teamInvited = invitedUsers[team.id] || [];
+    return availableUsers.filter(
+      u => !memberUsernames.includes(u) && !teamInvited.includes(u) && u !== currentUser
+    );
   };
 
   // --- Drag-and-Drop ---
@@ -232,6 +283,9 @@ const TeamHub: React.FC<TeamHubProps> = ({
             const tab = getTab(team.id);
             const pendingRequests = team.members.filter(m => m.userId.startsWith('pending_'));
             const teamFeed = teamFeeds[team.id] || [];
+            const teamInvited = invitedUsers[team.id] || [];
+            const filteredAvailable = getFilteredAvailable(team);
+            const teamSearchQuery = searchQuery[team.id] || '';
 
             const kanbanGoals = team.goals
               .filter(g => g.status !== 'FAILED')
@@ -302,11 +356,10 @@ const TeamHub: React.FC<TeamHubProps> = ({
                         {tab === 'members' && (
                           <div className="space-y-3">
                             <div className="text-[10px] font-mono text-gray-500 uppercase flex items-center gap-1.5">
-                              <Users size={11} /> Roster ({team.members.length})
+                              <Users size={11} /> Roster ({team.members.filter(m => !m.userId.startsWith('pending_')).length})
                             </div>
                             <div className="space-y-1">
-                              {team.members.map((member) => {
-                                const isPending = member.userId.startsWith('pending_');
+                              {team.members.filter(m => !m.userId.startsWith('pending_')).map((member) => {
                                 return (
                                   <div key={member.userId} className="flex items-center justify-between bg-gray-900/50 rounded-lg px-3 py-2 flex-wrap gap-1">
                                     <div className="flex items-center gap-2">
@@ -317,23 +370,108 @@ const TeamHub: React.FC<TeamHubProps> = ({
                                         {member.username}
                                       </span>
                                       {member.userId === team.adminId && <Crown size={10} className="text-yellow-400" />}
-                                      {isPending && <span className="text-[10px] text-yellow-400">(pending)</span>}
                                     </div>
                                     <div className="flex items-center gap-2 text-[10px] font-mono text-gray-500">
                                       <span>✓{member.tasksCompleted}</span>
                                       <span className={member.tasksFailed > 0 ? 'text-red-400' : ''}>✗{member.tasksFailed}</span>
                                       <span className="text-green-400/70">+{member.xpContributed}XP</span>
                                     </div>
-                                    {isPending && isAdmin && (
-                                      <div className="flex gap-1 w-full mt-1 justify-end">
-                                        <button onClick={() => onApproveMember(team.id, member.userId)} className="p-1 bg-green-600/20 hover:bg-green-600/40 rounded text-green-400"><Check size={12} /></button>
-                                        <button onClick={() => onRejectMember(team.id, member.userId)} className="p-1 bg-red-600/20 hover:bg-red-600/40 rounded text-red-400"><X size={12} /></button>
-                                      </div>
-                                    )}
                                   </div>
                                 );
                               })}
                             </div>
+
+                            {/* === INVITED USERS SECTION === */}
+                            {isAdmin && teamInvited.length > 0 && (
+                              <div className="bg-indigo-900/10 border border-indigo-500/20 rounded-lg p-3">
+                                <div className="text-[10px] font-mono text-indigo-400 uppercase mb-2 flex items-center gap-1.5">
+                                  <UserPlus size={11} /> Invited ({teamInvited.length})
+                                </div>
+                                {teamInvited.map(username => (
+                                  <div key={username} className="flex items-center justify-between py-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-gray-300">{username}</span>
+                                      <span className="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-400 px-1.5 py-0.5 rounded font-mono">pending</span>
+                                    </div>
+                                    <button
+                                      onClick={() => handleRemoveInvite(team.id, username)}
+                                      className="p-1 bg-red-600/20 hover:bg-red-600/40 rounded text-red-400 transition-colors"
+                                      title="Cancel invite"
+                                    >
+                                      <XCircle size={12} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* === SEARCH & INVITE (admin only) === */}
+                            {isAdmin && filteredAvailable.length > 0 && (
+                              <div ref={el => { searchRefs.current[team.id] = el; }}>
+                                <div className="relative">
+                                  <div className="flex items-center gap-2 bg-gray-900/70 border border-gray-700 rounded-lg px-3 py-2">
+                                    <Search size={12} className="text-gray-500 shrink-0" />
+                                    <input
+                                      type="text"
+                                      value={teamSearchQuery}
+                                      onChange={(e) => {
+                                        const val = e.target.value;
+                                        setSearchQuery(prev => ({ ...prev, [team.id]: val }));
+                                        setShowSearch(prev => ({ ...prev, [team.id]: val.length > 0 }));
+                                      }}
+                                      onFocus={() => {
+                                        if (teamSearchQuery.length > 0) {
+                                          setShowSearch(prev => ({ ...prev, [team.id]: true }));
+                                        }
+                                      }}
+                                      placeholder="Search & invite members..."
+                                      className="flex-1 bg-transparent text-xs text-white outline-none placeholder-gray-600"
+                                    />
+                                    {teamSearchQuery && (
+                                      <button
+                                        onClick={() => {
+                                          setSearchQuery(prev => ({ ...prev, [team.id]: '' }));
+                                          setShowSearch(prev => ({ ...prev, [team.id]: false }));
+                                        }}
+                                        className="text-gray-500 hover:text-gray-300"
+                                      >
+                                        <X size={12} />
+                                      </button>
+                                    )}
+                                  </div>
+                                  {/* Dropdown */}
+                                  <AnimatePresence>
+                                    {showSearch[team.id] && teamSearchQuery.length > 0 && (
+                                      <motion.div
+                                        initial={{ opacity: 0, y: -4 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -4 }}
+                                        className="absolute z-10 mt-1 w-full bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-h-48 overflow-y-auto"
+                                      >
+                                        {filteredAvailable
+                                          .filter(u => u.toLowerCase().includes(teamSearchQuery.toLowerCase()))
+                                          .slice(0, 10)
+                                          .map(username => (
+                                            <button
+                                              key={username}
+                                              onClick={() => handleInviteUser(team.id, username)}
+                                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-cyan-600/20 hover:text-cyan-300 transition-colors text-left"
+                                            >
+                                              <UserPlus size={12} className="text-cyan-500 shrink-0" />
+                                              {username}
+                                            </button>
+                                          ))}
+                                        {filteredAvailable.filter(u =>
+                                          u.toLowerCase().includes(teamSearchQuery.toLowerCase())
+                                        ).length === 0 && (
+                                          <div className="px-3 py-2 text-xs text-gray-500">No users found</div>
+                                        )}
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Pending requests inline */}
                             {isAdmin && pendingRequests.length > 0 && (

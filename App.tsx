@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 
 import {
   INITIAL_PLAYER,
@@ -40,6 +40,11 @@ import SquadHub from "./components/SquadHub";
 import FeedPage from "./components/FeedPage";
 import TeamHub from "./components/TeamHub";
 import SupportHub from "./components/SupportHub";
+import {
+  saveFeedActivityToDB, deleteFeedActivityFromDB, loadFeedFromDB,
+  saveSquadsToDB, loadSquadsFromDB,
+  saveTicketsToDB, loadTicketsFromDB,
+} from "./lib/supabase-feeds";
 import {
   generateQuestFromInput,
   verifyProof,
@@ -434,7 +439,47 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]); // New Transaction State
 
   // Community & Feed State
-  const [executionFeed, setExecutionFeed] = useState<ExecutionActivity[]>([]);
+  const [executionFeed, setExecutionFeed] = useState<ExecutionActivity[]>(() => {
+    try { const saved = localStorage.getItem('ec_feed'); return saved ? JSON.parse(saved) : []; }
+    catch { return []; }
+  });
+
+  // Load feed from DB on mount
+  useEffect(() => {
+    loadFeedFromDB().then(dbFeed => {
+      if (dbFeed.length > 0) {
+        setExecutionFeed(dbFeed);
+        localStorage.setItem('ec_feed', JSON.stringify(dbFeed.map(({ imageUrl, ...rest }) => rest)));
+      }
+    });
+  }, []);
+
+  // Save feed: DB first, localStorage as backup
+  const saveFeed = (activities: ExecutionActivity[]) => {
+    setExecutionFeed(activities);
+    const forStorage = activities.map(({ imageUrl, ...rest }) => rest);
+    localStorage.setItem('ec_feed', JSON.stringify(forStorage));
+  };
+
+  const logActivity = useCallback((actionType: ExecutionActivity["actionType"], message: string, squadId?: string, imageUrl?: string) => {
+    const newEntry: ExecutionActivity = {
+      id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
+      actionType,
+      message,
+      username: currentUser || player.name,
+      rank: player.rank,
+      timestamp: Date.now(),
+      squadId,
+      imageUrl,
+    };
+    saveFeed([newEntry, ...executionFeed]);
+    saveFeedActivityToDB(newEntry); // Persist to Supabase
+  }, [currentUser, executionFeed, player.rank, player.name]);
+
+  const handleDeleteFeedActivity = (id: string) => {
+    saveFeed(executionFeed.filter(a => a.id !== id));
+    deleteFeedActivityFromDB(id); // Delete from Supabase
+  };
   const [showConfetti, setShowConfetti] = useState(false);
   const [confettiKnowledge, setConfettiKnowledge] = useState("");
   const [weeklyTaskCount, setWeeklyTaskCount] = useState(0);
@@ -448,6 +493,29 @@ const App: React.FC = () => {
     } catch { return []; }
   });
 
+  // Load squads & tickets from DB on mount
+  useEffect(() => {
+    loadSquadsFromDB().then(dbSquads => {
+      if (dbSquads.length > 0) {
+        setSquads(dbSquads);
+        localStorage.setItem('ec_squads', JSON.stringify(dbSquads));
+      }
+    });
+    loadTicketsFromDB().then(dbTickets => {
+      if (dbTickets.length > 0) {
+        setTickets(dbTickets);
+        localStorage.setItem('ec_tickets', JSON.stringify(dbTickets));
+      }
+    });
+  }, []);
+
+  // Save squads to DB whenever they change
+  useEffect(() => {
+    if (squads.length > 0) {
+      saveSquadsToDB(squads);
+    }
+  }, [squads]);
+
   // Support Tickets State
   const [tickets, setTickets] = useState<any[]>(() => {
     try {
@@ -455,6 +523,13 @@ const App: React.FC = () => {
       return saved ? JSON.parse(saved) : [];
     } catch { return []; }
   });
+
+  // Save tickets to DB whenever they change
+  useEffect(() => {
+    if (tickets.length > 0) {
+      saveTicketsToDB(tickets);
+    }
+  }, [tickets]);
 
   // UI States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -2235,8 +2310,20 @@ const App: React.FC = () => {
       if (currentUser) fixedTasks.forEach((t) => upsertQuest(t, currentUser));
       setQuests((p) => [...fixedTasks, ...p]);
       setCurrentView("QUESTS");
-      addNotification(`Plan Generated. -${totalCost} Action XP`, "INFO");
     }
+  };
+  const handleGeneratePlan = handleGenerateTasksFromGoal;
+  const handleAIRespond = async (prompt: string): Promise<string> => {
+    try {
+      const res = await fetch("/api/anthropic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 2000, system: "You are a smart goal assistant. Respond concisely with JSON or plain text as requested.", messages: [{ role: "user", content: prompt }] }),
+      });
+      if (!res.ok) return '';
+      const data = await res.json();
+      return data.content?.[0]?.text || data.content?.toString() || '';
+    } catch { return ''; }
   };
   const handleUpgradeStat = (s: StatType) => {
     if (player.availablePoints > 0) {
@@ -2326,20 +2413,7 @@ const App: React.FC = () => {
     addNotification("Withdrawal Protocol Offline.", "WARNING");
   };
 
-  // --- EXECUTION FEED & COMMUNITY ---
-  const logActivity = (actionType: ExecutionActivity['actionType'], message: string, taskTitle?: string) => {
-    if (!currentUser) return;
-    const activity: ExecutionActivity = {
-      id: crypto.randomUUID(),
-      username: currentUser,
-      rank: player.rank,
-      actionType,
-      message,
-      taskTitle,
-      timestamp: Date.now(),
-    };
-    setExecutionFeed(prev => [activity, ...prev].slice(0, 200)); // keep last 200
-  };
+  
 
   const handlePublishQuest = (questId: string, isPublic: boolean) => {
     setQuests(prev => prev.map(q => {
@@ -2585,8 +2659,8 @@ const App: React.FC = () => {
     logActivity('SYSTEM', `Admin: ${message}`, message);
   };
 
-  const handleShareProtocol = () => {
-    logActivity('TASK_COMPLETE', `${currentUser} shared their protocol card with the cabal.`);
+  const handleShareProtocol = (imageDataUrl?: string) => {
+    logActivity('PROTOCOL_SHARE', `${currentUser} shared their protocol card with the cabal.`, undefined, imageDataUrl);
   };
 
   const handleAddGoal = (g: Goal) => {
@@ -3005,6 +3079,7 @@ const App: React.FC = () => {
               onViewSquad={handleViewSquad}
               onAdminPost={player.isAdmin ? handleAdminPostToFeed : undefined}
               onShareProtocol={handleShareProtocol}
+              onDeleteActivity={handleDeleteFeedActivity}
             />
           )}
           {currentView === "TEAM" && (
@@ -3012,6 +3087,7 @@ const App: React.FC = () => {
               teams={squads}
               currentUser={currentUser || player.name}
               player={player}
+              availableUsers={[player.name, ...quests.filter(q => q.status).map(q => q.title)].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).slice(0, 20)}
               onCreateTeam={handleCreateSquad}
               onRequestJoin={handleRequestJoin}
               onApproveMember={handleApproveMember}
@@ -3023,6 +3099,8 @@ const App: React.FC = () => {
               onUpdateGoalStatus={handleUpdateGoalStatus}
               onPostToTeamFeed={handlePostToTeamFeed}
               onSetPlayer={setPlayer}
+              onInviteUser={(teamId, username) => addNotification(`${username} has been invited to the team.`, 'INFO')}
+              onRemoveInvite={(teamId, username) => addNotification(`Invite to ${username} cancelled.`, 'INFO')}
             />
           )}
           {currentView === "GOALS" && (
@@ -3031,8 +3109,9 @@ const App: React.FC = () => {
               player={player}
               onAddGoal={handleAddGoal}
               onDeleteGoal={handleDeleteGoal}
-              onGenerateTasks={handleGenerateTasksFromGoal}
+              onGenerateTasks={handleGeneratePlan}
               isGenerating={isGenerating}
+              onAIRespond={handleAIRespond}
             />
           )}
           {currentView === "CHECKOUT" && (

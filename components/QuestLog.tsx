@@ -182,6 +182,7 @@ const QuestCard: React.FC<{
   const [verifying, setVerifying] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showFailConfirm, setShowFailConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -489,7 +490,7 @@ const QuestCard: React.FC<{
                 <Upload size={16} /> VERIFY
               </button>
               <button
-                onClick={onFail}
+                onClick={() => setShowFailConfirm(true)}
                 className="px-4 md:px-6 py-3 md:py-4 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-400 hover:text-red-500 hover:border-red-200 transition-colors active:scale-95 flex items-center justify-center"
                 title="Fail Task (-100 Action XP)"
               >
@@ -641,6 +642,56 @@ const QuestCard: React.FC<{
                   className="flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
                 >
                   YES, FORFEIT
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* FAIL CONFIRM DIALOG */}
+      <AnimatePresence>
+        {showFailConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowFailConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-xl p-4 mx-3 max-w-xs w-full shadow-2xl border border-gray-200 dark:border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-4">
+                <div className="text-red-500 text-lg mb-2">
+                  <AlertCircle size={32} className="mx-auto" />
+                </div>
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+                  Fail this Directive?
+                </h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                  You will lose <span className="font-bold text-red-500">100 Action XP</span> and this task will be marked as failed.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowFailConfirm(false)}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
+                  NO, CONTINUE
+                </button>
+                <button
+                  onClick={() => {
+                    setShowFailConfirm(false);
+                    onFail();
+                  }}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  YES, FAIL IT
                 </button>
               </div>
             </motion.div>
