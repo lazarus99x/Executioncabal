@@ -471,36 +471,68 @@ export const verifyProof = async (
   }
 };
 
-// 4. Generate Tasks From Goal
+// 4. Generate Tasks From Goal — daily tasks from now until deadline
 export const generateTasksFromGoal = async (goal: Goal): Promise<Quest[]> => {
   try {
+    const deadline = goal.deadline || Date.now() + 7 * 24 * 60 * 60 * 1000;
+    const daysRemaining = Math.max(1, Math.ceil((deadline - Date.now()) / (24 * 60 * 60 * 1000)));
+    const tasksPerDay = Math.min(3, Math.max(1, Math.ceil((daysRemaining > 7 ? 2 : 3))));
+
     const response = await callAnthropicProxy({
       model: DEFAULT_MODEL,
-      max_tokens: 1024,
-      system: "Break goal into 3 tasks. Tone: Brutal, short, direct. Simple English only. NO BIG GRAMMARS. Output JSON array only.",
+      max_tokens: 4096,
+      system: `You are a tactical task planner. Break this goal into daily actionable tasks for ${daysRemaining} days (${tasksPerDay} tasks per day). Each task must be concrete, verifiable, and achievable in one day. Output valid JSON only — no markdown, no backticks.`,
       messages: [{
         role: "user",
-        content: `Goal: "${goal.title}" - "${goal.notes}". Context: EXECUTION CABAL. Output JSON Array of objects: {title, description, difficulty, requirements}.`
+        content: `Goal: "${goal.title}". Description: "${goal.notes || goal.description}". Deadline: ${new Date(deadline).toLocaleDateString()}. Days remaining: ${daysRemaining}.
+Output format: JSON array of objects, each with:
+{
+  "day": number (1-based),
+  "title": string,
+  "description": string,
+  "difficulty": "E" | "D" | "C" | "B" | "A",
+  "requirements": string[],
+  "durationMinutes": number (15-180)
+}
+Tasks should build on each other progressively — earlier days are foundational, later days are advanced.`
       }]
     });
     const textContent = response.content.find(c => c.type === 'text')?.text || "";
     const tasks = extractJSON(textContent) || [];
 
-    return tasks.map((t: any) => ({
-      id: crypto.randomUUID(),
-      title: t.title,
-      description: t.description,
-      type: TaskType.MAIN,
-      difficulty: t.difficulty,
-      xpReward: 50,
-      penaltyXP: 100,
-      status: TaskStatus.IDLE,
-      requirements: t.requirements,
-      durationMinutes: 60,
-      deadline: Date.now() + 48 * 60 * 60 * 1000,
-      verificationAttempts: 0,
-      isPinned: false,
-    }));
+    if (tasks.length === 0) {
+      // Fallback: generate one task per day manually
+      for (let d = 1; d <= daysRemaining; d++) {
+        tasks.push({
+          day: d,
+          title: `Day ${d}: Work on "${goal.title}"`,
+          description: `Daily progress toward: ${goal.title}`,
+          difficulty: 'C' as Rank,
+          requirements: ['focus', 'execution'],
+          durationMinutes: 60,
+        });
+      }
+    }
+
+    return tasks.map((t: any) => {
+      const dayOffset = Math.max(0, (t.day || 1) - 1);
+      const taskDeadline = Date.now() + dayOffset * 24 * 60 * 60 * 1000;
+      return {
+        id: crypto.randomUUID(),
+        title: t.title || `Day ${t.day || 1}: Task`,
+        description: t.description || `Progress toward: ${goal.title}`,
+        type: TaskType.MAIN,
+        difficulty: t.difficulty || 'C',
+        xpReward: 50,
+        penaltyXP: 100,
+        status: TaskStatus.IDLE,
+        requirements: t.requirements || [],
+        durationMinutes: t.durationMinutes || 60,
+        deadline: taskDeadline + (t.durationMinutes || 60) * 60 * 1000,
+        verificationAttempts: 0,
+        isPinned: false,
+      };
+    });
   } catch (e) {
     console.error(e);
     return [];

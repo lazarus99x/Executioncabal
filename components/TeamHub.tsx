@@ -37,6 +37,9 @@ interface TeamHubProps {
   availableUsers?: string[];
   onInviteUser?: (teamId: string, username: string) => void;
   onRemoveInvite?: (teamId: string, username: string) => void;
+  // Team preview from feed sidebar
+  previewTeamId?: string | null;
+  onClearPreview?: () => void;
 }
 
 function generateId(): string {
@@ -69,6 +72,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
   onLeaveTeam, onAssignGoal, onCompleteGoal, onFailGoal,
   onUpdateGoalStatus, onPostToTeamFeed, onSetPlayer,
   availableUsers = [], onInviteUser, onRemoveInvite,
+  previewTeamId, onClearPreview,
 }) => {
   // --- UI State ---
   const [showCreate, setShowCreate] = useState(false);
@@ -224,7 +228,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
           </div>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => { setShowCreate(true); onClearPreview?.(); }}
           className="flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold uppercase transition-colors"
         >
           <Plus size={14} /> Create
@@ -271,6 +275,68 @@ const TeamHub: React.FC<TeamHubProps> = ({
         )}
       </AnimatePresence>
 
+      {/* Team Preview Card — shown when clicking 'View Team' from feed sidebar */}
+      {previewTeamId && (() => {
+        const team = teams.find(t => t.id === previewTeamId);
+        if (!team) return <div className="text-xs text-gray-500 text-center py-4">Team not found</div>;
+        const alreadyMember = team.members.some(m => m.userId === currentUser) || team.adminId === currentUser;
+        const alreadyRequested = team.members.some(m => m.userId === `pending_${currentUser}`);
+        return (
+          <div className="bg-gradient-to-br from-cyan-900/20 to-blue-900/20 border border-cyan-500/30 rounded-xl p-5 relative">
+            <button
+              onClick={onClearPreview}
+              className="absolute top-3 right-3 text-gray-500 hover:text-white transition-colors"
+            >
+              <X size={16} />
+            </button>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
+                <Users size={20} className="text-cyan-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white">{team.name}</h3>
+                <p className="text-[10px] font-mono text-gray-500">Team preview</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mb-4 leading-relaxed">{team.description || 'No description provided.'}</p>
+            <div className="flex items-center gap-4 text-[10px] font-mono text-gray-500 mb-4">
+              <span className="flex items-center gap-1"><Users size={11} /> {team.members.filter(m => !m.userId.startsWith('pending_')).length} members</span>
+              <span className="flex items-center gap-1"><Crown size={11} className="text-yellow-400" /> {team.adminName}</span>
+              <span className="flex items-center gap-1"><Coins size={11} /> {team.xpPool} XP</span>
+            </div>
+            <div className="flex gap-2">
+              {!alreadyMember && (
+                alreadyRequested ? (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-600/20 border border-yellow-500/30 text-yellow-400 text-[10px] font-bold uppercase tracking-wider">
+                    <Check size={11} /> Request Sent
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { onRequestJoin(team.id); onClearPreview?.(); }}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold uppercase tracking-wider transition-colors"
+                  >
+                    <UserPlus size={12} /> Request to Join
+                  </button>
+                )
+              )}
+              {alreadyMember && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-600/20 border border-green-500/30 text-green-400 text-[10px] font-bold uppercase tracking-wider">
+                  <Check size={11} /> You are a member
+                </div>
+              )}
+              {onClearPreview && (
+                <button
+                  onClick={onClearPreview}
+                  className="px-3 py-1.5 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-[10px] font-mono transition-colors"
+                >
+                  Back to Teams
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* My Teams */}
       {userTeams.length > 0 && (
         <div className="space-y-3">
@@ -296,7 +362,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
                 {/* Team header */}
                 <div
                   className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-900/50 transition-colors"
-                  onClick={() => setExpandedTeam(isExpanded ? null : team.id)}
+                  onClick={() => { setExpandedTeam(isExpanded ? null : team.id); onClearPreview?.(); }}
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
@@ -406,7 +472,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
                             )}
 
                             {/* === SEARCH & INVITE (admin only) === */}
-                            {isAdmin && filteredAvailable.length > 0 && (
+                            {isAdmin && (
                               <div ref={el => { searchRefs.current[team.id] = el; }}>
                                 <div className="relative">
                                   <div className="flex items-center gap-2 bg-gray-900/70 border border-gray-700 rounded-lg px-3 py-2">
@@ -698,7 +764,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
                 </div>
               </div>
               <button
-                onClick={() => onRequestJoin(team.id)}
+                onClick={() => { onRequestJoin(team.id); onClearPreview?.(); }}
                 className="flex items-center gap-1.5 bg-cyan-600/20 hover:bg-cyan-600/40 text-cyan-400 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors"
               >
                 <UserPlus size={12} /> Join

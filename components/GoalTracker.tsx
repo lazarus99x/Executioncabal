@@ -1,7 +1,20 @@
 import React, { useState } from 'react';
 import { Goal, Quest, Player } from '../types';
-import { Target, Plus, Zap, Trash2, ChevronRight, Loader2, Calendar, MessageSquare, Check, X } from 'lucide-react';
+import { Target, Plus, Zap, Trash2, ChevronRight, Loader2, Calendar, MessageSquare, Check, X, Clock, ListChecks, CheckCircle, Circle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface PlanTask {
+  day: number;
+  title: string;
+  description: string;
+  durationMinutes: number;
+}
+
+interface DailySection {
+  day: number;
+  date: string;
+  tasks: PlanTask[];
+}
 
 interface GoalTrackerProps {
   goals: Goal[];
@@ -22,7 +35,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
   const [answers, setAnswers] = useState<string[]>([]);
   const [currentQ, setCurrentQ] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState('');
-  const [generatedPlan, setGeneratedPlan] = useState<string>('');
+  const [planDays, setPlanDays] = useState<DailySection[]>([]);
   const [loadingAI, setLoadingAI] = useState(false);
   const [showConfirm, setShowConfirm] = useState<string | null>(null);
 
@@ -32,17 +45,61 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     catch { return ''; }
   };
 
+  // Dynamic fallback questions based on goal title
+  const fallbackQuestions = (title: string): string[] => {
+    const lower = title.toLowerCase();
+    if (lower.includes('money') || lower.includes('income') || lower.includes('dollar') || lower.includes('profit') || lower.includes('revenue')) {
+      return [
+        'What is your current monthly income source?',
+        'How many hours per day can you dedicate to this income goal?',
+        'What specific skill or method will you use to generate this income?',
+        'What is the biggest financial obstacle standing in your way right now?'
+      ];
+    }
+    if (lower.includes('learn') || lower.includes('skill') || lower.includes('course') || lower.includes('study') || lower.includes('cert')) {
+      return [
+        'What is your current experience level with this topic (beginner/intermediate/advanced)?',
+        'How many hours per day can you commit to learning?',
+        'What specific resources or materials do you already have?',
+        'What is the most confusing part of this topic for you right now?'
+      ];
+    }
+    if (lower.includes('health') || lower.includes('fitness') || lower.includes('weight') || lower.includes('gym') || lower.includes('workout')) {
+      return [
+        'What is your current fitness routine (if any)?',
+        'How many days per week can you commit to exercise?',
+        'Do you have any injuries or health restrictions?',
+        'What specific equipment or gym access do you have?'
+      ];
+    }
+    if (lower.includes('build') || lower.includes('create') || lower.includes('app') || lower.includes('project') || lower.includes('startup') || lower.includes('business')) {
+      return [
+        'What stage is this project at right now (idea/prototype/launched)?',
+        'What specific skills do you need but currently lack?',
+        'How many hours per day can you work on this?',
+        'What is the single biggest blocker you face getting this done?'
+      ];
+    }
+    return [
+      'How many hours per day can you dedicate to this goal?',
+      'What resources or tools do you already have?',
+      'What is your biggest obstacle to achieving this?',
+      'What does success look like on day 1 after starting?'
+    ];
+  };
+
   const handleCreateGoal = async () => {
     if (!newTitle.trim() || !newDeadline) return;
     setStep('qna');
     setLoadingAI(true);
-    const qPrompt = `Given the goal: "${newTitle}" with deadline ${newDeadline}. Generate exactly 4 short relevant questions to ask the user that will help create a personalized daily task plan. The questions should be practical (skills, hours per day, current blockers, resources available). Return as a JSON array of strings. No markdown.`;
+    const qPrompt = `For the goal: "${newTitle}" (deadline: ${newDeadline}), generate exactly 4 unique, specific questions that will help create a personalized daily action plan. The questions MUST be directly relevant to "${newTitle}" — not generic. Return as a JSON array of 4 strings. No markdown, no backticks.`;
     const res = await askAI(qPrompt);
     try {
-      const parsed = JSON.parse(res.replace(/```/g, ''));
-      setQuestions(Array.isArray(parsed) ? parsed.slice(0, 4) : ['How many hours can you dedicate daily?', 'What skills/resources do you have?', 'What is your biggest blocker?', 'What is your current weekly commitment?']);
+      const cleaned = res.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      setQuestions(Array.isArray(parsed) && parsed.length >= 2 ? parsed.slice(0, 4) : fallbackQuestions(newTitle));
     } catch {
-      setQuestions(['How many hours can you dedicate daily?', 'What skills/resources do you have?', 'What is your biggest blocker?', 'What is your current weekly commitment?']);
+      setQuestions(fallbackQuestions(newTitle));
     }
     setAnswers([]);
     setCurrentQ(0);
@@ -65,31 +122,60 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
   const generatePlan = async (allAnswers: string[]) => {
     setLoadingAI(true);
     const context = allAnswers.map((a, i) => `Q: ${questions[i]}\nA: ${a}`).join('\n');
-    const planPrompt = `Goal: "${newTitle}" by ${newDeadline}. User context:\n${context}\n\nGenerate a practical daily task plan (1-3 tasks per day) covering the remaining days. No more than 3 active tasks at once. Check NO time clashes. Return as numbered tasks with day labels. Be concise.`;
+    const deadlineDate = new Date(newDeadline);
+    const daysRemaining = Math.max(1, Math.ceil((deadlineDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
+
+    const planPrompt = `Goal: "${newTitle}" by ${newDeadline} (${daysRemaining} days). User context:\n${context}\n\nGenerate a ${daysRemaining}-day roadmap with 1-3 tasks per day. Each task must be concrete, verifiable, and achievable in one session. Earlier tasks build a foundation, later tasks are more advanced.\n\nReturn valid JSON only (no markdown, no backticks):\n[\n  {\n    "day": 1,\n    "tasks": [\n      {"title": "Task title", "description": "Actionable description", "durationMinutes": 45}\n    ]\n  }\n]`;
     const plan = await askAI(planPrompt);
-    setGeneratedPlan(plan || 'Unable to generate plan. Please try again.');
+    try {
+      const cleaned = plan.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      const days: DailySection[] = Array.isArray(parsed)
+        ? parsed.map((d: any) => ({
+            day: d.day || 1,
+            date: new Date(Date.now() + (d.day - 1) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+            tasks: Array.isArray(d.tasks) ? d.tasks.slice(0, 3) : [],
+          }))
+        : [];
+      setPlanDays(days.length > 0 ? days : generateFallbackPlan(daysRemaining));
+    } catch {
+      setPlanDays(generateFallbackPlan(daysRemaining));
+    }
     setStep('preview');
     setLoadingAI(false);
+  };
+
+  const generateFallbackPlan = (days: number): DailySection[] => {
+    const result: DailySection[] = [];
+    for (let d = 1; d <= Math.min(days, 14); d++) {
+      result.push({
+        day: d,
+        date: new Date(Date.now() + (d - 1) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
+        tasks: [
+          { day: d, title: `Focus session: ${newTitle}`, description: `Dedicated block for ${newTitle} progress`, durationMinutes: 60 },
+        ],
+      });
+    }
+    return result;
   };
 
   const handleApprove = () => {
     const goal: Goal = {
       id: crypto.randomUUID(),
       title: newTitle,
-      description: generatedPlan,
-      notes: '',
+      description: `${planDays.length} day plan (${new Date(newDeadline).toLocaleDateString()})`,
+      notes: planDays.map(d => `Day ${d.day}: ${d.tasks.map(t => t.title).join(', ')}`).join('\n'),
       completed: false,
       deadline: new Date(newDeadline).getTime(),
     };
     onAddGoal(goal);
-    // Also generate actual Quest tasks from the approved plan
     onGenerateTasks(goal);
     setNewTitle('');
     setNewDeadline('');
     setStep('input');
     setQuestions([]);
     setAnswers([]);
-    setGeneratedPlan('');
+    setPlanDays([]);
     setShowAdd(false);
   };
 
@@ -103,6 +189,9 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     setShowConfirm(id);
   };
 
+  const totalTasks = planDays.reduce((sum, d) => sum + d.tasks.length, 0);
+  const checkedTasks = useState<Set<string>>(new Set())[0];
+
   return (
     <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-10 relative">
       <div className="max-w-4xl mx-auto">
@@ -112,7 +201,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
               Strategic Objectives
             </h1>
             <p className="text-gray-500 dark:text-gray-400 font-mono text-sm">
-              Set a goal. The AI will ask you questions and generate a daily action plan.
+              Set a goal. The AI asks smart questions. Get a daily roadmap added to your directives.
             </p>
           </div>
           <button onClick={() => { setShowAdd(true); setStep('input'); }} className="w-full md:w-auto bg-system-blue text-white dark:text-black font-bold font-mono px-4 py-3 md:py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-600 dark:hover:bg-white transition-colors">
@@ -166,21 +255,62 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
               {step === 'preview' && (
                 <>
                   <h3 className="text-system-blue font-bold font-mono mb-2 flex items-center gap-2">
-                    <Check size={16} /> GENERATED PLAN
+                    <ListChecks size={16} /> DAILY ROADMAP
                   </h3>
-                  <p className="text-xs text-gray-500 mb-4">AI-generated daily tasks for: <strong>{newTitle}</strong></p>
-                  <div className="bg-gray-50 dark:bg-black/40 border border-system-blue/20 p-4 rounded-lg mb-4 max-h-60 overflow-y-auto whitespace-pre-wrap text-sm text-gray-700 dark:text-gray-300 font-mono">
-                    {loadingAI ? (
-                      <div className="flex items-center gap-3 py-8 justify-center"><Loader2 className="animate-spin text-system-blue" size={20} /> Generating optimal plan...</div>
-                    ) : generatedPlan}
-                  </div>
-                  {!loadingAI && (
-                    <div className="flex justify-end gap-3">
-                      <button onClick={handleRefine} className="border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-4 py-2 rounded text-sm font-bold">REFINE</button>
-                      <button onClick={handleApprove} className="bg-green-600 text-white font-bold px-6 py-2 rounded text-sm flex items-center gap-2 hover:bg-green-500">
-                        <Check size={14} /> APPROVE & SET
-                      </button>
-                    </div>
+                  <p className="text-xs text-gray-500 mb-4">
+                    <strong>{newTitle}</strong> &mdash; {planDays.length} days &middot; {totalTasks} tasks &middot; deadline {new Date(newDeadline).toLocaleDateString()}
+                  </p>
+
+                  {loadingAI ? (
+                    <div className="flex items-center gap-3 py-12 justify-center"><Loader2 className="animate-spin text-system-blue" size={24} /> Generating daily roadmap...</div>
+                  ) : (
+                    <>
+                      {/* Summary bar */}
+                      <div className="bg-gradient-to-r from-cyan-900/20 to-blue-900/20 border border-cyan-500/20 rounded-lg p-3 mb-4 flex items-center justify-between text-xs font-mono">
+                        <span className="text-gray-400"><Calendar size={12} className="inline mr-1" /> {planDays.length} days</span>
+                        <span className="text-gray-400"><ListChecks size={12} className="inline mr-1" /> {totalTasks} tasks</span>
+                        <span className="text-cyan-400 font-bold">{Math.round((totalTasks * 50) / 10) * 10}+ XP</span>
+                      </div>
+
+                      {/* Day-by-day cards */}
+                      <div className="space-y-2 max-h-80 overflow-y-auto pr-1 mb-4">
+                        {planDays.map((section) => (
+                          <motion.div
+                            key={section.day}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: section.day * 0.05 }}
+                            className="bg-gray-50 dark:bg-black/30 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden"
+                          >
+                            <div className="flex items-center justify-between px-3 py-2 bg-gray-100 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                              <span className="text-xs font-bold text-system-blue font-mono">DAY {section.day}</span>
+                              <span className="text-[10px] text-gray-500 font-mono">{section.date}</span>
+                            </div>
+                            <div className="p-2 space-y-1">
+                              {section.tasks.map((task, idx) => (
+                                <div key={idx} className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800/30 transition-colors">
+                                  <Circle size={14} className="text-gray-400 shrink-0 mt-0.5" />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-xs font-semibold text-gray-900 dark:text-white">{task.title}</p>
+                                    <p className="text-[10px] text-gray-500 mt-0.5">{task.description}</p>
+                                    <span className="text-[10px] text-gray-500 font-mono flex items-center gap-1 mt-0.5">
+                                      <Clock size={10} /> {task.durationMinutes} min
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        ))}
+                      </div>
+
+                      <div className="flex justify-end gap-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                        <button onClick={handleRefine} className="border border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white px-4 py-2 rounded text-sm font-bold">REFINE</button>
+                        <button onClick={handleApprove} className="bg-green-600 text-white font-bold px-6 py-2 rounded text-sm flex items-center gap-2 hover:bg-green-500">
+                          <Check size={14} /> APPROVE & ADD TO DIRECTIVES
+                        </button>
+                      </div>
+                    </>
                   )}
                 </>
               )}
@@ -203,7 +333,27 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
                       <Calendar size={12} /> DEADLINE: {new Date(goal.deadline).toLocaleDateString()}
                     </div>
                   )}
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 pl-8 line-clamp-2">{goal.description || goal.notes}</p>
+                  <div className="pl-8">
+                    {goal.notes ? (
+                      <div className="space-y-0.5">
+                        {goal.notes.split('\n').filter(Boolean).map((line, i) => {
+                          const dayMatch = line.match(/^Day (\d+):/);
+                          if (dayMatch) {
+                            return (
+                              <div key={i} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                <ListChecks size={10} className="shrink-0 text-system-blue" />
+                                <span className="text-system-blue font-bold">{dayMatch[0]}</span>
+                                <span>{line.slice(dayMatch[0].length)}</span>
+                              </div>
+                            );
+                          }
+                          return null;
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2">{goal.description}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <button onClick={() => onGenerateTasks(goal)} disabled={isGenerating} className={`border px-4 py-2 rounded text-xs font-bold font-mono uppercase flex items-center gap-2 ${isGenerating ? 'bg-gray-100 dark:bg-gray-800 text-gray-400' : 'bg-blue-50 dark:bg-system-blue/10 text-system-blue border-blue-200 dark:border-system-blue/30 hover:bg-system-blue hover:text-white dark:hover:text-black'}`}>
@@ -218,7 +368,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
             <div className="text-center py-20 opacity-30">
               <Target size={64} className="mx-auto mb-4 text-gray-900 dark:text-white" />
               <p className="font-mono text-sm text-gray-900 dark:text-white">NO STRATEGIC OBJECTIVES SET</p>
-              <p className="font-mono text-xs text-gray-500 mt-2">Click SET OBJECTIVE to create a goal with AI-powered task generation</p>
+              <p className="font-mono text-xs text-gray-500 mt-2">Click SET OBJECTIVE to create a goal with AI-powered daily task generation</p>
             </div>
           )}
         </div>

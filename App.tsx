@@ -104,6 +104,7 @@ import {
   savePlayerData,
   updateUserStatus,
   fetchTransactions,
+  fetchAllProfiles,
 } from "./lib/supabase";
 import {
   Player,
@@ -485,6 +486,17 @@ const App: React.FC = () => {
   const [weeklyTaskCount, setWeeklyTaskCount] = useState(0);
   const [weeklyTotalCount, setWeeklyTotalCount] = useState(0);
 
+  // Team preview state (for 'View Team' from feed sidebar)
+  const [selectedPreviewTeamId, setSelectedPreviewTeamId] = useState<string | null>(null);
+
+  // All platform usernames for team invite search
+  const [allUsernames, setAllUsernames] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('ec_all_usernames');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   // Squad State
   const [squads, setSquads] = useState<Squad[]>(() => {
     try {
@@ -508,6 +520,21 @@ const App: React.FC = () => {
       }
     });
   }, []);
+
+  // Collect usernames from all sources
+  useEffect(() => {
+    const sources = new Set<string>();
+    if (currentUser) sources.add(currentUser);
+    if (player.name) sources.add(player.name);
+    squads.forEach(s => {
+      s.members.forEach(m => sources.add(m.username));
+      if (s.adminName) sources.add(s.adminName);
+    });
+    executionFeed.forEach(a => { if (a.username) sources.add(a.username); });
+    const merged = Array.from(sources).filter(Boolean).sort();
+    setAllUsernames(merged);
+    localStorage.setItem('ec_all_usernames', JSON.stringify(merged));
+  }, [currentUser, player.name, squads, executionFeed]);
 
   // Save squads to DB whenever they change
   useEffect(() => {
@@ -564,6 +591,21 @@ const App: React.FC = () => {
     "SYNCED" | "PENDING" | "SYNCING"
   >("SYNCED");
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Fetch all registered users from Supabase on mount
+  useEffect(() => {
+    if (!isOnline) return;
+    fetchAllProfiles().then(profiles => {
+      if (profiles.length > 0) {
+        const profileNames = profiles.map((p: any) => p.username).filter(Boolean);
+        setAllUsernames(prev => {
+          const merged = Array.from(new Set([...prev, ...profileNames])).sort();
+          localStorage.setItem('ec_all_usernames', JSON.stringify(merged));
+          return merged;
+        });
+      }
+    }).catch(() => {});
+  }, [isOnline]);
 
   // Mobile chat trigger (counter-based so useEffect fires on each tap)
   const [chatOpenTrigger, setChatOpenTrigger] = useState(0);
@@ -2603,7 +2645,12 @@ const App: React.FC = () => {
   };
 
   const handleViewSquad = (squadId: string) => {
-    setCurrentView('SQUADS');
+    setSelectedPreviewTeamId(squadId);
+    setCurrentView('TEAM');
+  };
+
+  const handleClearTeamPreview = () => {
+    setSelectedPreviewTeamId(null);
   };
 
   // --- SUPPORT TICKET HANDLERS ---
@@ -3087,7 +3134,7 @@ const App: React.FC = () => {
               teams={squads}
               currentUser={currentUser || player.name}
               player={player}
-              availableUsers={[player.name, ...quests.filter(q => q.status).map(q => q.title)].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).slice(0, 20)}
+              availableUsers={allUsernames}
               onCreateTeam={handleCreateSquad}
               onRequestJoin={handleRequestJoin}
               onApproveMember={handleApproveMember}
@@ -3101,6 +3148,8 @@ const App: React.FC = () => {
               onSetPlayer={setPlayer}
               onInviteUser={(teamId, username) => addNotification(`${username} has been invited to the team.`, 'INFO')}
               onRemoveInvite={(teamId, username) => addNotification(`Invite to ${username} cancelled.`, 'INFO')}
+              previewTeamId={selectedPreviewTeamId}
+              onClearPreview={handleClearTeamPreview}
             />
           )}
           {currentView === "GOALS" && (
