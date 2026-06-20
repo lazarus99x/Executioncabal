@@ -148,6 +148,7 @@ interface AnalyticsProps {
   transactions?: Transaction[];
   onUseItem?: (instanceId: string, itemId: string) => void;
   currency?: Currency;
+  onShareToFeed?: () => void;
 }
 
 const Analytics: React.FC<AnalyticsProps> = ({
@@ -156,6 +157,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
   transactions = [],
   onUseItem,
   currency = "USD",
+  onShareToFeed,
 }) => {
   const maxStat = Math.max(...(Object.values(player.stats) as number[]), 50);
   const inventoryCount = player.inventory?.length || 0;
@@ -804,6 +806,11 @@ const Analytics: React.FC<AnalyticsProps> = ({
                                  {isGeneratingShare ? <Loader2 className="animate-spin" size={13} /> : <Share2 size={13} />} 
                                  Export & Share
                              </button>
+                             {onShareToFeed && (
+                               <button onClick={() => { onShareToFeed(); setShowShareModal(false); }} className="flex-[1.2] bg-green-600 hover:bg-green-500 text-white py-3 rounded-lg text-[11px] font-mono font-bold uppercase transition flex items-center justify-center gap-1.5">
+                                 <Activity size={13} /> Share to Feed
+                               </button>
+                             )}
                          </div>
                      </motion.div>
                  </div>

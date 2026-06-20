@@ -34,6 +34,12 @@ import Checkout from "./components/Checkout";
 import AdminDashboard from "./components/AdminDashboard";
 import Framework from "./components/Framework";
 import OnboardingFlow from "./components/OnboardingFlow";
+import ExecutionFeed from "./components/ExecutionFeed";
+import ConfettiReward from "./components/ConfettiReward";
+import SquadHub from "./components/SquadHub";
+import FeedPage from "./components/FeedPage";
+import TeamHub from "./components/TeamHub";
+import SupportHub from "./components/SupportHub";
 import {
   generateQuestFromInput,
   verifyProof,
@@ -71,6 +77,9 @@ import {
   Globe,
   BrainCircuit,
   Zap,
+  Activity,
+  Swords,
+  MessageSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -110,7 +119,14 @@ import {
   Currency,
   Transaction,
   ProposedTaskPlan,
+  ExecutionActivity,
+  Squad,
+  SquadGoal,
 } from "./types";
+
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 11);
+}
 
 // --- NAV BUTTONS COMPONENT ---
 const NavButtons: React.FC<{
@@ -130,11 +146,14 @@ const NavButtons: React.FC<{
 }) => {
   const items = [
     { id: "QUESTS", icon: <Scroll size={24} />, label: "Directives" },
+    { id: "FEED", icon: <Activity size={24} />, label: "Feed" },
+    { id: "TEAM", icon: <Users size={24} />, label: "Team" },
     { id: "GOALS", icon: <Target size={24} />, label: "Goals" },
     { id: "ANALYTICS", icon: <LayoutDashboard size={24} />, label: "Stats" },
     { id: "CHECKOUT", icon: <Wallet size={24} />, label: "Wallet" },
     { id: "STORE", icon: <ShoppingBag size={24} />, label: "Store" },
     { id: "SETTINGS", icon: <SettingsIcon size={24} />, label: "Settings" },
+    { id: "SUPPORT", icon: <MessageSquare size={24} />, label: "Help" },
   ];
   if (isAdmin)
     items.push({
@@ -189,7 +208,11 @@ const VIEW_LABELS: Record<ViewType, string> = {
   ANALYTICS: "Stats",
   CHECKOUT: "Wallet",
   STORE: "Store",
+  FEED: "Feed",
+  TEAM: "Team",
   SETTINGS: "Settings",
+  SUPPORT: "Help",
+  SQUADS: "Teams",
   CLIENTS: "Clients",
   REPORTS: "Reports",
   PROFILE: "Profile",
@@ -410,6 +433,29 @@ const App: React.FC = () => {
   const [storeItems, setStoreItems] = useState<StoreItem[]>(SHOP_ITEMS);
   const [transactions, setTransactions] = useState<Transaction[]>([]); // New Transaction State
 
+  // Community & Feed State
+  const [executionFeed, setExecutionFeed] = useState<ExecutionActivity[]>([]);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [confettiKnowledge, setConfettiKnowledge] = useState("");
+  const [weeklyTaskCount, setWeeklyTaskCount] = useState(0);
+  const [weeklyTotalCount, setWeeklyTotalCount] = useState(0);
+
+  // Squad State
+  const [squads, setSquads] = useState<Squad[]>(() => {
+    try {
+      const saved = localStorage.getItem('ec_squads');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
+  // Support Tickets State
+  const [tickets, setTickets] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('ec_tickets');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
+
   // UI States
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentView, setCurrentView] = useState<ViewType>("QUESTS");
@@ -620,7 +666,13 @@ const App: React.FC = () => {
               );
 
               let calculatedRank = Rank.E;
-              if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.X])
+              if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.ULTIMA])
+                calculatedRank = Rank.ULTIMA;
+              else if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.SSS])
+                calculatedRank = Rank.SSS;
+              else if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.SS])
+                calculatedRank = Rank.SS;
+              else if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.X])
                 calculatedRank = Rank.X;
               else if (effectiveTaskCount >= RANK_TASK_THRESHOLDS[Rank.S])
                 calculatedRank = Rank.S;
@@ -656,6 +708,9 @@ const App: React.FC = () => {
                 [Rank.A]: 5,
                 [Rank.S]: 6,
                 [Rank.X]: 7,
+                [Rank.SS]: 8,
+                [Rank.SSS]: 9,
+                [Rank.ULTIMA]: 10,
               };
               const finalLevel = rankLevels[finalRank] || 1;
               const finalTitle = RANK_TITLES[finalRank] || "Novice";
@@ -1547,6 +1602,11 @@ const App: React.FC = () => {
       })
     );
     setPlayer((p) => ({ ...p, lastActiveTimestamp: Date.now() }));
+    // Log activity
+    const startedQuest = quests.find(q => q.id === id);
+    if (startedQuest) {
+      logActivity('TASK_START', `Started: ${startedQuest.title}`, startedQuest.title);
+    }
   };
   // PREVENT DOUBLE DEDUCTIONS for same task
   const failedTaskIds = useRef<Set<string>>(new Set());
@@ -1697,9 +1757,11 @@ const App: React.FC = () => {
         const newTotalTasks = (prev.totalTasksCompleted || 0) + 1;
         let newRank = prev.rank;
         let levelledUp = false;
-        if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.X]) newRank = Rank.X;
-        else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.S])
-          newRank = Rank.S;
+        if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.ULTIMA]) newRank = Rank.ULTIMA;
+        else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.SSS]) newRank = Rank.SSS;
+        else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.SS]) newRank = Rank.SS;
+        else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.X]) newRank = Rank.X;
+        else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.S]) newRank = Rank.S;
         else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.A])
           newRank = Rank.A;
         else if (newTotalTasks >= RANK_TASK_THRESHOLDS[Rank.B])
@@ -1723,6 +1785,9 @@ const App: React.FC = () => {
           [Rank.A]: 5,
           [Rank.S]: 6,
           [Rank.X]: 7,
+          [Rank.SS]: 8,
+          [Rank.SSS]: 9,
+          [Rank.ULTIMA]: 10,
         };
         const newLevel = rankLevels[newRank] || 1;
         let newTitle = prev.title;
@@ -1817,6 +1882,15 @@ const App: React.FC = () => {
         `Verified. +${reward} XP +10 Verification Bonus.`,
         "SUCCESS"
       );
+      // Confetti + Hidden Knowledge reward + feed
+      const randomKnowledge = SECRET_KNOWLEDGE[Math.floor(Math.random() * SECRET_KNOWLEDGE.length)];
+      setConfettiKnowledge(randomKnowledge);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 4500);
+      logActivity('TASK_COMPLETE', `Completed: ${quest.title}`, quest.title);
+      // Update weekly stats
+      setWeeklyTaskCount(prev => prev + 1);
+      setWeeklyTotalCount(prev => prev + 1);
     } else {
       const att = quest.verificationAttempts + 1;
       if (att >= 3) {
@@ -2251,6 +2325,270 @@ const App: React.FC = () => {
   const handleWithdraw = async () => {
     addNotification("Withdrawal Protocol Offline.", "WARNING");
   };
+
+  // --- EXECUTION FEED & COMMUNITY ---
+  const logActivity = (actionType: ExecutionActivity['actionType'], message: string, taskTitle?: string) => {
+    if (!currentUser) return;
+    const activity: ExecutionActivity = {
+      id: crypto.randomUUID(),
+      username: currentUser,
+      rank: player.rank,
+      actionType,
+      message,
+      taskTitle,
+      timestamp: Date.now(),
+    };
+    setExecutionFeed(prev => [activity, ...prev].slice(0, 200)); // keep last 200
+  };
+
+  const handlePublishQuest = (questId: string, isPublic: boolean) => {
+    setQuests(prev => prev.map(q => {
+      if (q.id === questId) {
+        const updated = { ...q, isPublic };
+        if (currentUser) upsertQuest(updated, currentUser);
+        if (isPublic) {
+          const quest = prev.find(x => x.id === questId);
+          if (quest) {
+            logActivity('TASK_PUBLISHED', `Made public: ${quest.title}`, quest.title);
+            addNotification(`Directive is now PUBLIC. Others can see your execution.`, "SUCCESS");
+          }
+        }
+        return updated;
+      }
+      return q;
+    }));
+  };
+
+  // --- SQUAD HANDLERS ---
+  const saveSquads = (updated: Squad[]) => {
+    setSquads(updated);
+    localStorage.setItem('ec_squads', JSON.stringify(updated));
+  };
+
+  const handleCreateSquad = (name: string, description: string) => {
+    const newSquad: Squad = {
+      id: generateId(),
+      name,
+      description,
+      adminId: currentUser || player.name,
+      adminName: currentUser || player.name,
+      members: [{
+        userId: currentUser || player.name,
+        username: currentUser || player.name,
+        rank: player.rank,
+        joinedAt: Date.now(),
+        tasksCompleted: 0,
+        tasksFailed: 0,
+        xpContributed: 0,
+        xpLost: 0,
+      }],
+      goals: [],
+      xpPool: 0,
+      createdAt: Date.now(),
+      isOpen: true,
+    };
+    saveSquads([...squads, newSquad]);
+    logActivity('SYSTEM', `Created squad: ${name}`, name);
+    addNotification(`Squad "${name}" created! Invite others to join.`, "SUCCESS");
+  };
+
+  const handleRequestJoin = (squadId: string) => {
+    const squad = squads.find(s => s.id === squadId);
+    if (!squad) return;
+    const updatedSquads = squads.map(s => {
+      if (s.id === squadId) {
+        return {
+          ...s,
+          members: [...s.members, {
+            userId: `pending_${currentUser}`,
+            username: currentUser || player.name,
+            rank: player.rank,
+            joinedAt: Date.now(),
+            tasksCompleted: 0,
+            tasksFailed: 0,
+            xpContributed: 0,
+            xpLost: 0,
+          }],
+        };
+      }
+      return s;
+    });
+    saveSquads(updatedSquads);
+    addNotification(`Join request sent to "${squad.name}"`, "INFO");
+  };
+
+  const handleApproveMember = (squadId: string, pendingUserId: string) => {
+    const fullUser = player;
+    const actualUsername = pendingUserId.replace('pending_', '');
+    const updatedSquads = squads.map(s => {
+      if (s.id === squadId) {
+        return {
+          ...s,
+          members: s.members.map(m =>
+            m.userId === pendingUserId
+              ? { ...m, userId: actualUsername, username: actualUsername, rank: fullUser.rank }
+              : m
+          ),
+        };
+      }
+      return s;
+    });
+    saveSquads(updatedSquads);
+    logActivity('SYSTEM', `${actualUsername} joined squad: ${squadId}`, squadId);
+    addNotification(`${actualUsername} approved! They're now in the squad.`, "SUCCESS");
+  };
+
+  const handleRejectMember = (squadId: string, pendingUserId: string) => {
+    saveSquads(squads.map(s => ({
+      ...s,
+      members: s.members.filter(m => m.userId !== pendingUserId),
+    })));
+  };
+
+  const handleLeaveSquad = (squadId: string) => {
+    saveSquads(squads.map(s => ({
+      ...s,
+      members: s.members.filter(m => m.userId !== currentUser),
+      adminId: s.adminId === currentUser ? (s.members.find(m => m.userId !== currentUser)?.userId || s.adminId) : s.adminId,
+    })));
+    addNotification("You left the squad.", "INFO");
+  };
+
+  const handleAssignGoal = (squadId: string, title: string, description: string, assignedTo: string, xpStake: number) => {
+    const squad = squads.find(s => s.id === squadId);
+    if (!squad) return;
+    const assignedMember = squad.members.find(m => m.userId === assignedTo);
+    const goal: SquadGoal = {
+      id: generateId(),
+      squadId,
+      title,
+      description,
+      assignedTo,
+      assignedToName: assignedMember?.username || assignedTo,
+      assignedBy: currentUser || player.name,
+      assignedByName: currentUser || player.name,
+      status: 'PENDING',
+      xpStake,
+      createdAt: Date.now(),
+    };
+    saveSquads(squads.map(s =>
+      s.id === squadId ? { ...s, goals: [...s.goals, goal] } : s
+    ));
+    logActivity('SYSTEM', `Goal assigned to ${goal.assignedToName}: ${title} (${xpStake} XP stake)`, title);
+    addNotification(`Goal "${title}" assigned to ${goal.assignedToName}`, "INFO");
+  };
+
+  const handleCompleteGoal = (squadId: string, goalId: string) => {
+    let goalTitle = '';
+    saveSquads(squads.map(s => {
+      if (s.id !== squadId) return s;
+      const goal = s.goals.find(g => g.id === goalId);
+      if (!goal) return s;
+      goalTitle = goal.title;
+      return {
+        ...s,
+        goals: s.goals.map(g =>
+          g.id === goalId ? { ...g, status: 'COMPLETED' as const, completedAt: Date.now() } : g
+        ),
+        members: s.members.map(m =>
+          m.userId === goal.assignedTo
+            ? { ...m, tasksCompleted: m.tasksCompleted + 1, xpContributed: m.xpContributed + goal.xpStake }
+            : m
+        ),
+        xpPool: s.xpPool + goal.xpStake,
+      };
+    }));
+    logActivity('TASK_COMPLETE', `Completed squad goal: ${goalTitle}`, squadId);
+  };
+
+  const handleFailGoal = (squadId: string, goalId: string) => {
+    const squad = squads.find(s => s.id === squadId);
+    const goal = squad?.goals.find(g => g.id === goalId);
+    setPlayer(prev => ({
+      ...prev,
+      currentXp: Math.max(0, prev.currentXp - (goal?.xpStake || 0)),
+    }));
+    saveSquads(squads.map(s => {
+      if (s.id !== squadId) return s;
+      if (!goal) return s;
+      return {
+        ...s,
+        goals: s.goals.map(g =>
+          g.id === goalId ? { ...g, status: 'FAILED' as const, completedAt: Date.now() } : g
+        ),
+        members: s.members.map(m =>
+          m.userId === goal.assignedTo
+            ? { ...m, tasksFailed: m.tasksFailed + 1, xpLost: m.xpLost + goal.xpStake }
+            : m
+        ),
+        xpPool: s.xpPool + goal.xpStake,
+      };
+    }));
+    logActivity('TASK_FAIL', `Failed squad goal: ${goal?.title} - lost ${goal?.xpStake} XP`, squadId);
+    addNotification(`Goal FAILED. ${goal?.xpStake || 0} XP deducted from your balance.`, "FAILURE");
+  };
+
+  const handleViewSquad = (squadId: string) => {
+    setCurrentView('SQUADS');
+  };
+
+  // --- SUPPORT TICKET HANDLERS ---
+  const handleCreateTicket = (subject: string, message: string) => {
+    const ticket = {
+      id: Math.random().toString(36).substring(2, 11),
+      subject,
+      userId: currentUser || player.name,
+      username: currentUser || player.name,
+      status: 'OPEN',
+      createdAt: Date.now(),
+      lastAdminReply: 0,
+      messages: [{ sender: currentUser || player.name, text: message, timestamp: Date.now(), isAdmin: false }],
+    };
+    const updated = [...tickets, ticket];
+    setTickets(updated);
+    localStorage.setItem('ec_tickets', JSON.stringify(updated));
+    addNotification('Support ticket created.', 'INFO');
+  };
+
+  const handleSendTicketMessage = (ticketId: string, message: string) => {
+    setTickets(prev => prev.map(t => {
+      if (t.id !== ticketId) return t;
+      return {
+        ...t,
+        messages: [...t.messages, { sender: currentUser || player.name, text: message, timestamp: Date.now(), isAdmin: player.isAdmin || false }],
+        status: player.isAdmin ? 'IN_PROGRESS' : t.status,
+        lastAdminReply: player.isAdmin ? Date.now() : t.lastAdminReply,
+      };
+    }));
+  };
+
+  const handleUpdateTicketStatus = (ticketId: string, status: string) => {
+    setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, status } : t));
+  };
+
+  // --- TEAM HANDLERS ---
+  const handleUpdateGoalStatus = (teamId: string, goalId: string, status: 'ACTIVE' | 'IN_PROGRESS' | 'COMPLETED') => {
+    setSquads(prev => prev.map(s => {
+      if (s.id !== teamId) return s;
+      return {
+        ...s,
+        goals: s.goals.map(g => g.id === goalId ? { ...g, status: status === 'ACTIVE' ? 'PENDING' : status === 'COMPLETED' ? 'COMPLETED' : 'PENDING' as any } : g),
+      };
+    }));
+  };
+
+  const handlePostToTeamFeed = (teamId: string, message: string) => {
+    logActivity('SYSTEM', `[${squads.find(s => s.id === teamId)?.name || 'Team'}] ${currentUser}: ${message}`, teamId);
+  };
+
+  const handleAdminPostToFeed = (message: string) => {
+    logActivity('SYSTEM', `Admin: ${message}`, message);
+  };
+
+  const handleShareProtocol = () => {
+    logActivity('TASK_COMPLETE', `${currentUser} shared their protocol card with the cabal.`);
+  };
+
   const handleAddGoal = (g: Goal) => {
     if (currentUser) upsertGoal(g, currentUser);
     setGoals((p) => [...p, g]);
@@ -2521,11 +2859,21 @@ const App: React.FC = () => {
             </div>
 
             {/* XP Wallet Display - Hidden on Mobile */}
-            <div className="hidden md:flex bg-black/5 dark:bg-black/30 rounded px-3 py-1.5 items-center gap-2 border border-black/5 dark:border-white/5">
-              <Wallet size={14} className="text-system-gold" />
-              <span className="text-xs font-mono font-bold">
-                {player.currentXp} XP
-              </span>
+            <div className="hidden md:flex items-center gap-3">
+              <div className="bg-black/5 dark:bg-black/30 rounded px-3 py-1.5 items-center gap-2 border border-black/5 dark:border-white/5 flex">
+                <Wallet size={14} className="text-system-gold" />
+                <span className="text-xs font-mono font-bold">
+                  {player.currentXp} XP
+                </span>
+              </div>
+              {weeklyTotalCount > 0 && (
+                <div className="bg-green-900/20 border border-green-500/20 rounded px-2 py-1 flex items-center gap-1.5">
+                  <Activity size={12} className="text-green-400" />
+                  <span className="text-[10px] font-mono text-green-400 font-bold whitespace-nowrap">
+                    {weeklyTaskCount} this week
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -2625,21 +2973,56 @@ const App: React.FC = () => {
           className={`flex-1 h-full relative overflow-hidden ${player.isBanned ? "blur-sm pointer-events-none" : ""}`}
         >
           {currentView === "QUESTS" && (
-            <QuestLog
+            <div className="h-full flex flex-col">
+              <div className="flex-1 overflow-hidden">
+                <QuestLog
+                  player={player}
+                  quests={quests}
+                  onStartQuest={handleStartQuest}
+                  onFailQuest={handleFailQuest}
+                  onVerifyProof={handleVerifyProof}
+                  onAddQuest={handleAddQuest}
+                  onChaosSubmit={handleGenerateOrganizerPlan}
+                  onAcceptChaosPlan={handleExecuteChaosPlan}
+                  onReviveQuest={handleReviveQuest}
+                  onTogglePin={handleTogglePin}
+                  onDeleteQuest={handleDeleteQuest}
+                  onUpdatePlayer={handleUpdatePlayer}
+                  onEditQuest={handleEditQuest}
+                  loading={isGenerating}
+                  onPublishQuest={handlePublishQuest}
+                />
+            </div>
+            </div>
+          )}
+          {currentView === "FEED" && (
+            <FeedPage
+              activities={executionFeed}
+              squads={squads}
+              storeItems={storeItems}
+              currentUsername={currentUser || ""}
               player={player}
-              quests={quests}
-              onStartQuest={handleStartQuest}
-              onFailQuest={handleFailQuest}
-              onVerifyProof={handleVerifyProof}
-              onAddQuest={handleAddQuest}
-              onChaosSubmit={handleGenerateOrganizerPlan}
-              onAcceptChaosPlan={handleExecuteChaosPlan}
-              onReviveQuest={handleReviveQuest}
-              onTogglePin={handleTogglePin}
-              onDeleteQuest={handleDeleteQuest}
-              onUpdatePlayer={handleUpdatePlayer}
-              onEditQuest={handleEditQuest}
-              loading={isGenerating}
+              onViewSquad={handleViewSquad}
+              onAdminPost={player.isAdmin ? handleAdminPostToFeed : undefined}
+              onShareProtocol={handleShareProtocol}
+            />
+          )}
+          {currentView === "TEAM" && (
+            <TeamHub
+              teams={squads}
+              currentUser={currentUser || player.name}
+              player={player}
+              onCreateTeam={handleCreateSquad}
+              onRequestJoin={handleRequestJoin}
+              onApproveMember={handleApproveMember}
+              onRejectMember={handleRejectMember}
+              onLeaveTeam={handleLeaveSquad}
+              onAssignGoal={handleAssignGoal}
+              onCompleteGoal={handleCompleteGoal}
+              onFailGoal={handleFailGoal}
+              onUpdateGoalStatus={handleUpdateGoalStatus}
+              onPostToTeamFeed={handlePostToTeamFeed}
+              onSetPlayer={setPlayer}
             />
           )}
           {currentView === "GOALS" && (
@@ -2676,6 +3059,7 @@ const App: React.FC = () => {
               transactions={transactions}
               onUseItem={handleUseItem}
               currency={currency}
+              onShareToFeed={handleShareProtocol}
             />
           )}
           {currentView === "SETTINGS" && (
@@ -2707,6 +3091,18 @@ const App: React.FC = () => {
                 setPlayer((p) => ({ ...p, ...u }));
                 setTimeout(() => (saveBlockedRef.current = false), 2000);
               }}
+            />
+          )}
+          {currentView === "SUPPORT" && (
+            <SupportHub
+              currentUser={currentUser || player.name}
+              isAdmin={player.isAdmin || false}
+              tickets={tickets}
+              openTicketCount={tickets.filter((t: any) => !t.lastAdminReply && t.userId !== currentUser).length}
+              onCreateTicket={handleCreateTicket}
+              onSendMessage={handleSendTicketMessage}
+              onUpdateTicketStatus={handleUpdateTicketStatus}
+              onMarkRead={(ticketId: string) => {}}
             />
           )}
         </div>
@@ -2766,6 +3162,11 @@ const App: React.FC = () => {
           onClose={() => setShowLevelUp(false)}
         />
       )}
+      <ConfettiReward
+        show={showConfetti}
+        knowledge={confettiKnowledge}
+        onClose={() => setShowConfetti(false)}
+      />
       {!player.isBanned && (
         <ChatInterface
           messages={chatMessages}

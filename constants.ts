@@ -16,6 +16,9 @@ export const RANK_ORDER = [
   Rank.A,
   Rank.S,
   Rank.X,
+  Rank.SS,
+  Rank.SSS,
+  Rank.ULTIMA,
 ];
 
 // Legacy XP Thresholds (still used for reference/Shop)
@@ -38,6 +41,9 @@ export const RANK_TASK_THRESHOLDS = {
   [Rank.A]: 50,
   [Rank.S]: 75,
   [Rank.X]: 100,
+  [Rank.SS]: 150,
+  [Rank.SSS]: 250,
+  [Rank.ULTIMA]: 500,
 };
 
 // RANK TITLES (Solo Leveling Inspired)
@@ -49,6 +55,9 @@ export const RANK_TITLES = {
   [Rank.A]: "Ruler",
   [Rank.S]: "Monarch",
   [Rank.X]: "The Executioner",
+  [Rank.SS]: "Grandmaster",
+  [Rank.SSS]: "Transcendent",
+  [Rank.ULTIMA]: "The Singularity",
 };
 
 export const INITIAL_PLAYER: Player = {
@@ -92,6 +101,9 @@ export const RANK_COLORS = {
   [Rank.A]: "text-red-500",
   [Rank.S]: "text-yellow-400",
   [Rank.X]: "text-system-gold drop-shadow-[0_0_10px_rgba(255,215,0,0.8)]",
+  [Rank.SS]: "text-pink-400 drop-shadow-[0_0_8px_rgba(244,114,182,0.6)]",
+  [Rank.SSS]: "text-cyan-300 drop-shadow-[0_0_8px_rgba(103,232,249,0.6)]",
+  [Rank.ULTIMA]: "text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.9)]",
 };
 
 export const SHOP_ITEMS: StoreItem[] = [

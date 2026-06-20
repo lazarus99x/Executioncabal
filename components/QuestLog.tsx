@@ -31,6 +31,7 @@ import {
   User,
   Crown,
   Edit,
+  Eye,
   BrainCircuit,
   CalendarClock,
   CalendarCheck,
@@ -70,6 +71,7 @@ interface QuestLogProps {
   onEditQuest: (id: string, newTitle: string, newDesc: string) => Promise<void>;
   onTogglePin: (id: string) => void;
   onDeleteQuest: (id: string) => void;
+  onPublishQuest?: (id: string, isPublic: boolean) => void;
   onUpdatePlayer: (updates: Partial<Player>) => void;
   loading: boolean;
 }
@@ -170,7 +172,8 @@ const QuestCard: React.FC<{
   onDelete: () => void;
   onEdit: () => void;
   onRevive?: () => void;
-}> = ({ quest, onStart, onFail, onVerify, onTogglePin, onDelete, onEdit, onRevive }) => {
+  onPublish?: () => void;
+}> = ({ quest, onStart, onFail, onVerify, onTogglePin, onDelete, onEdit, onRevive, onPublish }) => {
   const [timeLeft, setTimeLeft] = useState<string>("");
   const [timeColor, setTimeColor] = useState("text-gray-500");
   const [showProofInput, setShowProofInput] = useState(false);
@@ -308,6 +311,22 @@ const QuestCard: React.FC<{
                     className={quest.isPinned ? "fill-current" : ""}
                   />
                 </button>
+                {onPublish && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onPublish();
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors touch-manipulation ${
+                      quest.isPublic
+                        ? "text-green-400 bg-green-50 dark:bg-green-900/20"
+                        : "text-gray-400 dark:text-gray-600 hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    }`}
+                    title={quest.isPublic ? "Public - Others can see" : "Make Public"}
+                  >
+                    <Eye size={16} className={quest.isPublic ? "fill-current" : ""} />
+                  </button>
+                )}
               </div>
             )}
 
@@ -645,6 +664,7 @@ const QuestLog: React.FC<QuestLogProps> = ({
   onEditQuest,
   onTogglePin,
   onDeleteQuest,
+  onPublishQuest,
   onUpdatePlayer,
   loading,
 }) => {
@@ -1181,6 +1201,7 @@ const QuestLog: React.FC<QuestLogProps> = ({
                   setEditTitle(quest.title);
                   setEditDesc(quest.description);
                 }}
+                onPublish={onPublishQuest ? () => onPublishQuest(quest.id, !quest.isPublic) : undefined}
               />
             ))}
           </AnimatePresence>

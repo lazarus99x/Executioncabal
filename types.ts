@@ -6,6 +6,9 @@ export enum Rank {
   A = "A",
   S = "S",
   X = "X", // Zen
+  SS = "SS",
+  SSS = "SSS",
+  ULTIMA = "ULTIMA",
 }
 
 export type Currency = "USD" | "NGN";
@@ -122,6 +125,7 @@ export interface Quest {
   isPinned?: boolean;
   linkedClientId?: string;
   isVisibleInLog?: boolean;
+  isPublic?: boolean;
   oneHourReminderSent?: boolean; // Tracking for Resend Reminders
   thirtyMinReminderSent?: boolean; // Tracking for Resend Reminders
 }
@@ -247,6 +251,16 @@ export interface SystemLog {
   session_duration?: number; // New
 }
 
+export interface ExecutionActivity {
+  id: string;
+  username: string;
+  rank: Rank;
+  actionType: "TASK_START" | "TASK_COMPLETE" | "TASK_FAIL" | "RANK_UP" | "SYSTEM" | "TASK_PUBLISHED";
+  message: string;
+  taskTitle?: string;
+  timestamp: number;
+}
+
 export type ViewType =
   | "QUESTS"
   | "STORE"
@@ -259,4 +273,47 @@ export type ViewType =
   | "PROFILE"
   | "ADMIN"
   | "FRAMEWORK"
-  | "ORGANIZER";
+  | "ORGANIZER"
+  | "FEED"
+  | "TEAM"
+  | "SUPPORT"
+  | "SQUADS"
+
+export interface SquadMember {
+  userId: string;
+  username: string;
+  rank: Rank;
+  joinedAt: number;
+  tasksCompleted: number;
+  tasksFailed: number;
+  xpContributed: number;
+  xpLost: number;
+}
+
+export interface SquadGoal {
+  id: string;
+  squadId: string;
+  title: string;
+  description: string;
+  assignedTo: string;
+  assignedToName: string;
+  assignedBy: string;
+  assignedByName: string;
+  status: "PENDING" | "COMPLETED" | "FAILED";
+  xpStake: number;
+  createdAt: number;
+  completedAt?: number;
+}
+
+export interface Squad {
+  id: string;
+  name: string;
+  description: string;
+  adminId: string;
+  adminName: string;
+  members: SquadMember[];
+  goals: SquadGoal[];
+  xpPool: number;
+  createdAt: number;
+  isOpen: boolean;
+}
