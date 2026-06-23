@@ -1719,9 +1719,9 @@ const App: React.FC = () => {
       })
     );
     setPlayer((p) => ({ ...p, lastActiveTimestamp: Date.now() }));
-    // Log activity
+    // Log activity (only if public)
     const startedQuest = quests.find(q => q.id === id);
-    if (startedQuest) {
+    if (startedQuest && startedQuest.isPublic) {
       logActivity('TASK_START', `Started: ${startedQuest.title}`, startedQuest.title);
     }
   };
@@ -2004,7 +2004,7 @@ const App: React.FC = () => {
       setConfettiKnowledge(randomKnowledge);
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4500);
-      logActivity('TASK_COMPLETE', `Completed: ${quest.title}`, quest.title);
+      if (quest.isPublic) logActivity('TASK_COMPLETE', `Completed: ${quest.title}`, quest.title);
       // Update weekly stats
       setWeeklyTaskCount(prev => prev + 1);
       setWeeklyTotalCount(prev => prev + 1);
