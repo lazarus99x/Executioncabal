@@ -471,8 +471,49 @@ export const verifyProof = async (
   }
 };
 
+// Simple difficulty guesser based on goal title
+function guessDifficulty(title: string): Rank {
+  const lower = title.toLowerCase();
+  if (lower.includes('advanced') || lower.includes('master') || lower.includes('ultima')) return Rank.A;
+  if (lower.includes('intermediate') || lower.includes('complex')) return Rank.C;
+  return Rank.D;
+}
+
 // 4. Generate Tasks From Goal — daily tasks from now until deadline
 export const generateTasksFromGoal = async (goal: Goal): Promise<Quest[]> => {
+  // Prefer to parse structured plan data from goal.notes (JSON)
+  // This preserves the exact plan the user previewed and approved
+  try {
+    if (goal.notes) {
+      const parsed = JSON.parse(goal.notes);
+      if (parsed && parsed.days && Array.isArray(parsed.days) && parsed.days.length > 0) {
+        const now = Date.now();
+        const deadline = goal.deadline || now + 7 * 24 * 60 * 60 * 1000;
+        return parsed.days.flatMap((section: any) => {
+          if (!section.tasks || !Array.isArray(section.tasks)) return [];
+          const dayOffset = Math.max(0, (section.day || 1) - 1);
+          const taskDeadline = now + dayOffset * 24 * 60 * 60 * 1000;
+          const difficultyRank = guessDifficulty(goal.title);
+          return section.tasks.map((task: any) => ({
+            id: crypto.randomUUID(),
+            title: task.title || `Day ${section.day}: Task`,
+            description: task.description || `Progress toward: ${goal.title}`,
+            type: TaskType.MAIN,
+            difficulty: difficultyRank,
+            xpReward: 50,
+            penaltyXP: 100,
+            status: TaskStatus.IDLE,
+            requirements: ['execution', 'proof'],
+            durationMinutes: task.durationMinutes || 60,
+            deadline: taskDeadline + (task.durationMinutes || 60) * 60 * 1000,
+            verificationAttempts: 0,
+            isPinned: false,
+          }));
+        });
+      }
+    }
+  } catch {}
+  // Fallback: try AI generation
   try {
     const deadline = goal.deadline || Date.now() + 7 * 24 * 60 * 60 * 1000;
     const daysRemaining = Math.max(1, Math.ceil((deadline - Date.now()) / (24 * 60 * 60 * 1000)));

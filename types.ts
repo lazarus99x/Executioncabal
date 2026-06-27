@@ -253,7 +253,7 @@ export interface SystemLog {
 
 export interface ExecutionActivity {
   id: string;
-  actionType: "TASK_START" | "TASK_COMPLETE" | "TASK_PUBLISHED" | "RANK_UP" | "TASK_FAIL" | "SYSTEM" | "PROTOCOL_SHARE";
+  actionType: "TASK_START" | "TASK_COMPLETE" | "TASK_PUBLISHED" | "RANK_UP" | "TASK_FAIL" | "SYSTEM" | "PROTOCOL_SHARE" | "USER_POST";
   message: string;
   username: string;
   rank: Rank;
@@ -261,6 +261,9 @@ export interface ExecutionActivity {
   squadId?: string;
   taskTitle?: string;
   imageUrl?: string;
+  xpChange?: number;
+  upvotes?: string[];
+  isPost?: boolean;
 }
 
 export type ViewType =

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Eye, Crown, Check, Play, Activity, ShoppingBag, Sparkles, Swords,
-  Send, Share2, MessageSquare, Users, Trash2, Image,
+  Activity, Crown, Check, Play, ShoppingBag, Sparkles, Swords,
+  Send, Share2, MessageSquare, Users, Trash2, Image, ThumbsUp,
+  ChevronUp, Zap, AlertCircle, X,
 } from 'lucide-react';
 import { ExecutionActivity, Player, StoreItem, Squad } from '../types';
 import { RANK_COLORS } from '../constants';
@@ -22,12 +23,12 @@ function getRelativeTime(timestamp: number): string {
 
 function getActionIcon(actionType: ExecutionActivity['actionType']) {
   switch (actionType) {
-    case 'TASK_START': return <Play size={14} className="text-blue-400" />;
-    case 'TASK_COMPLETE': return <Check size={14} className="text-green-400" />;
-    case 'TASK_FAIL': return <Eye size={14} className="text-red-400" />;
-    case 'TASK_PUBLISHED': return <Eye size={14} className="text-emerald-400" />;
+    case 'TASK_COMPLETE': return <Check size={14} className="text-emerald-400" />;
+    case 'TASK_FAIL': return <AlertCircle size={14} className="text-red-400" />;
     case 'RANK_UP': return <Crown size={14} className="text-yellow-400" />;
-    case 'SYSTEM': return <Activity size={14} className="text-purple-400" />;
+    case 'USER_POST': return <MessageSquare size={14} className="text-cyan-400" />;
+    case 'PROTOCOL_SHARE': return <Share2 size={14} className="text-green-400" />;
+    case 'SYSTEM': return <Zap size={14} className="text-purple-400" />;
     default: return <Activity size={14} className="text-gray-400" />;
   }
 }
@@ -42,13 +43,17 @@ interface FeedPageProps {
   onAdminPost?: (message: string) => void;
   onShareProtocol?: () => void;
   onDeleteActivity?: (id: string) => void;
+  onUserPost?: (message: string) => void;
+  onUpvote?: (activityId: string) => void;
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({
   activities, squads, storeItems, currentUsername, player, onViewSquad,
-  onAdminPost, onShareProtocol, onDeleteActivity,
+  onAdminPost, onShareProtocol, onDeleteActivity, onUserPost, onUpvote,
 }) => {
   const [adminInput, setAdminInput] = useState('');
+  const [userPostInput, setUserPostInput] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const sorted = [...activities].sort((a, b) => b.timestamp - a.timestamp);
   const featuredItems = storeItems.slice(0, 3);
   const activeTeams = squads.filter(s => s.members.length > 0).slice(0, 5);
@@ -59,16 +64,70 @@ const FeedPage: React.FC<FeedPageProps> = ({
     setAdminInput('');
   }
 
+  function handleUserPost() {
+    if (!userPostInput.trim() || !onUserPost) return;
+    onUserPost(userPostInput.trim());
+    setUserPostInput('');
+  }
+
+  function canUpvote(activity: ExecutionActivity): boolean {
+    return activity.actionType !== 'TASK_FAIL' &&
+           activity.actionType !== 'TASK_START';
+  }
+
+  function getUpvoteCount(activity: ExecutionActivity): number {
+    return (activity.upvotes || []).length;
+  }
+
+  function hasUpvoted(activity: ExecutionActivity): boolean {
+    return (activity.upvotes || []).includes(currentUsername);
+  }
+
   return (
     <div className="h-full overflow-y-auto px-4 md:px-8 py-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/20 to-blue-600/20 border border-purple-500/30 flex items-center justify-center">
-          <Activity size={20} className="text-purple-400" />
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
+          <Activity size={20} className="text-cyan-400" />
         </div>
         <div>
           <h2 className="text-lg font-black uppercase tracking-wider text-white">Execution Feed</h2>
-          <p className="text-[10px] font-mono text-gray-500">Public activity across the cabal</p>
+          <p className="text-[10px] font-mono text-gray-500">Accountability board &mdash; progress breeds pressure</p>
+        </div>
+      </div>
+
+      {/* User Post Widget — visible to all authenticated users */}
+      <div className="bg-[#0d0d0d] border border-cyan-500/20 rounded-xl p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-6 h-6 rounded-lg bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center">
+            <MessageSquare size={12} className="text-cyan-400" />
+          </div>
+          <span className="text-[10px] font-mono text-cyan-400 uppercase tracking-widest font-bold">
+            Post to Feed
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder="Share an update, a win, or a challenge..."
+            value={userPostInput}
+            onChange={(e) => setUserPostInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleUserPost();
+              }
+            }}
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-cyan-500/50 transition-colors"
+          />
+          <button
+            onClick={handleUserPost}
+            disabled={!userPostInput.trim()}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-cyan-500/20 border border-cyan-500/40 text-cyan-400 hover:bg-cyan-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs font-bold uppercase tracking-wider"
+          >
+            <Send size={13} />
+            Post
+          </button>
         </div>
       </div>
 
@@ -80,13 +139,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
               <MessageSquare size={12} className="text-purple-400" />
             </div>
             <span className="text-[10px] font-mono text-purple-400 uppercase tracking-widest font-bold">
-              Admin Post
+              Admin Announcement
             </span>
           </div>
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Post a system announcement to the feed..."
+              placeholder="Post a system announcement..."
               value={adminInput}
               onChange={(e) => setAdminInput(e.target.value)}
               onKeyDown={(e) => {
@@ -103,7 +162,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
               className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-400 hover:bg-purple-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-all text-xs font-bold uppercase tracking-wider"
             >
               <Send size={13} />
-              Post to Feed
+              Announce
             </button>
           </div>
         </div>
@@ -133,13 +192,12 @@ const FeedPage: React.FC<FeedPageProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Main feed column */}
         <div className="lg:col-span-3 space-y-4">
-          {/* Activity stream */}
           {sorted.length === 0 ? (
             <div className="text-center py-16 bg-[#0d0d0d] rounded-xl border border-gray-800">
               <Activity size={40} className="mx-auto text-gray-700 mb-3" />
-              <p className="text-sm text-gray-500 mb-1">No public activity yet</p>
+              <p className="text-sm text-gray-500 mb-1">No activity yet</p>
               <p className="text-[10px] font-mono text-gray-600 max-w-xs mx-auto">
-                Tasks made public via the WatchMe button appear here. Complete tasks and toggle them public to show up.
+                Complete tasks, share updates, or post to the feed. Every action logged here builds the culture of execution.
               </p>
             </div>
           ) : (
@@ -152,6 +210,11 @@ const FeedPage: React.FC<FeedPageProps> = ({
                 {sorted.map((activity) => {
                   const isCurrentUser = activity.username === currentUsername;
                   const rankColorClass = RANK_COLORS[activity.rank] || 'text-gray-400';
+                  const showUpvote = canUpvote(activity);
+                  const voted = hasUpvoted(activity);
+                  const upCount = getUpvoteCount(activity);
+                  const isFailure = activity.actionType === 'TASK_FAIL';
+                  const isUserPost = activity.actionType === 'USER_POST';
 
                   return (
                     <motion.div
@@ -161,37 +224,80 @@ const FeedPage: React.FC<FeedPageProps> = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
-                      className={`group flex items-start gap-3 px-4 py-3 rounded-xl border transition-colors ${
-                        isCurrentUser
+                      className={`group relative flex items-start gap-3 px-4 py-3 rounded-xl border transition-all ${
+                        isUserPost
+                          ? 'bg-gradient-to-r from-cyan-900/10 to-blue-900/5 border-cyan-500/20 hover:border-cyan-500/40'
+                          : isFailure
+                          ? 'bg-gradient-to-r from-red-900/10 to-gray-900 border-red-800/20 hover:border-red-800/40'
+                          : isCurrentUser
                           ? 'bg-system-blue/5 border-system-blue/20'
                           : 'bg-[#0d0d0d] border-gray-800/60 hover:border-gray-700'
                       }`}
                     >
-                      <div className="mt-0.5 w-8 h-8 rounded-full bg-gray-900 border border-gray-800 flex items-center justify-center flex-shrink-0">
+                      <div className={`mt-0.5 w-8 h-8 rounded-full bg-gray-900 border flex items-center justify-center flex-shrink-0 ${
+                        isUserPost ? 'border-cyan-500/30' :
+                        isFailure ? 'border-red-500/30' : 'border-gray-800'
+                      }`}>
                         {getActionIcon(activity.actionType)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-sm font-semibold tracking-tight ${isCurrentUser ? 'text-white' : 'text-gray-200'}`}>
+                          <span className={`text-sm font-semibold tracking-tight ${
+                            isCurrentUser ? 'text-white' : 'text-gray-200'
+                          }`}>
                             {activity.username}
                           </span>
                           <span className={`text-[10px] font-mono font-bold uppercase ${rankColorClass}`}>
                             [{activity.rank}]
                           </span>
+                          {activity.xpChange !== undefined && (
+                            <span className={`text-[10px] font-mono font-bold ${
+                              activity.xpChange > 0 ? 'text-emerald-400' : 'text-red-400'
+                            }`}>
+                              {activity.xpChange > 0 ? `+${activity.xpChange}` : `${activity.xpChange}`} XP
+                            </span>
+                          )}
                           <span className="text-[10px] font-mono text-gray-600 ml-auto whitespace-nowrap">
                             {getRelativeTime(activity.timestamp)}
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">{activity.message}</p>
-                      {activity.imageUrl && (
-                        <img src={activity.imageUrl} alt="Protocol Card" className="mt-2 rounded-lg border border-gray-700 w-full max-w-[240px] h-auto cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(activity.imageUrl, '_blank')} />
-                      )}
+                        <p className={`text-xs mt-0.5 leading-relaxed ${
+                          isUserPost
+                            ? 'text-gray-300 font-medium'
+                            : isFailure
+                            ? 'text-gray-400'
+                            : 'text-gray-400'
+                        }`}>{activity.message}</p>
+                        {activity.imageUrl && (
+                          <img src={activity.imageUrl} alt="Protocol Card" className="mt-2 rounded-lg border border-gray-700 w-full max-w-[240px] h-auto cursor-pointer hover:opacity-80 transition-opacity" onClick={() => window.open(activity.imageUrl, '_blank')} />
+                        )}
+
+                        {/* Action bar: upvote + delete */}
+                        <div className="flex items-center gap-2 mt-2">
+                          {showUpvote && onUpvote && (
+                            <button
+                              onClick={() => onUpvote(activity.id)}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono font-bold transition-all border ${
+                                voted
+                                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                                  : 'bg-gray-900 border-gray-700 text-gray-500 hover:border-emerald-500/30 hover:text-emerald-400'
+                              }`}
+                            >
+                              <ChevronUp size={11} />
+                              <span>{upCount > 0 ? upCount : ''}</span>
+                            </button>
+                          )}
+                          {isCurrentUser && onDeleteActivity && (
+                            <button
+                              onClick={() => setShowDeleteConfirm(activity.id)}
+                              className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all p-1"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {isCurrentUser && onDeleteActivity && (
-                        <button onClick={() => onDeleteActivity(activity.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 transition-all shrink-0 p-1" title="Delete">
-                          <Trash2 size={14} />
-                        </button>
-                      )}
                     </motion.div>
                   );
                 })}
@@ -202,7 +308,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
         {/* Sidebar */}
         <div className="lg:col-span-1 space-y-4">
-          {/* Active Teams — EXPANDED SECTION */}
+          {/* Active Teams */}
           {activeTeams.length > 0 && (
             <div className="bg-[#0d0d0d] border border-cyan-800/40 rounded-xl p-4">
               <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-400 uppercase tracking-widest mb-3">
@@ -230,7 +336,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                       onClick={() => onViewSquad?.(team.id)}
                       className="w-full mt-0.5 flex items-center justify-center gap-1.5 text-[9px] font-bold uppercase tracking-wider py-1.5 rounded-md bg-cyan-600/20 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-600/40 transition-colors"
                     >
-                      <Eye size={10} /> View Team
+                      <Users size={10} /> View Team
                     </button>
                   </div>
                 ))}
@@ -267,7 +373,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
           {/* Weekly Stats */}
           <div className="bg-[#0d0d0d] border border-gray-800 rounded-xl p-4">
-            <div className="flex items-center gap-2 text-[10px] font-mono text-green-400 uppercase tracking-widest mb-3">
+            <div className="flex items-center gap-2 text-[10px] font-mono text-emerald-400 uppercase tracking-widest mb-3">
               <Activity size={12} /> Your Week
             </div>
             <div className="space-y-1.5">
@@ -287,6 +393,50 @@ const FeedPage: React.FC<FeedPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* DELETE CONFIRM */}
+      <AnimatePresence>
+        {showDeleteConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowDeleteConfirm(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-gray-900 rounded-xl p-4 max-w-xs w-full shadow-2xl border border-gray-700"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-center mb-4">
+                <div className="text-red-500 mb-2"><Trash2 size={28} className="mx-auto" /></div>
+                <h4 className="text-sm font-bold text-white mb-1">Delete this activity?</h4>
+                <p className="text-xs text-gray-400">This cannot be undone. The post will be removed from the feed.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(null)}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+                >
+                  CANCEL
+                </button>
+                <button
+                  onClick={() => {
+                    if (onDeleteActivity) onDeleteActivity(showDeleteConfirm);
+                    setShowDeleteConfirm(null);
+                  }}
+                  className="flex-1 py-2.5 text-xs font-bold rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors"
+                >
+                  DELETE
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

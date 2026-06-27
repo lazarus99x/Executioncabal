@@ -462,7 +462,7 @@ const App: React.FC = () => {
     localStorage.setItem('ec_feed', JSON.stringify(forStorage));
   };
 
-  const logActivity = useCallback((actionType: ExecutionActivity["actionType"], message: string, squadId?: string, imageUrl?: string) => {
+  const logActivity = useCallback((actionType: ExecutionActivity["actionType"], message: string, squadId?: string, imageUrl?: string, xpChange?: number, isPost?: boolean) => {
     const newEntry: ExecutionActivity = {
       id: Date.now().toString(36) + Math.random().toString(36).substring(2, 7),
       actionType,
@@ -472,6 +472,9 @@ const App: React.FC = () => {
       timestamp: Date.now(),
       squadId,
       imageUrl,
+      xpChange,
+      isPost: isPost || false,
+      upvotes: [],
     };
     saveFeed([newEntry, ...executionFeed]);
     saveFeedActivityToDB(newEntry); // Persist to Supabase
@@ -1755,6 +1758,8 @@ const App: React.FC = () => {
       );
       // Task Failure Penalty: 100 XP
       deductPenaltyFromBought(100, "Task Failed");
+      // Privacy-preserving feed: username + failure (no task details)
+      logActivity('TASK_FAIL', `${currentUser || player.name} just failed a task and lost 100 XP`, undefined, undefined, -100);
 
       // Optional: Clean up ref after long delay if needed,
       // but usually once failed, it stays failed in this session.
@@ -2005,6 +2010,13 @@ const App: React.FC = () => {
       setShowConfetti(true);
       setTimeout(() => setShowConfetti(false), 4500);
       if (quest.isPublic) logActivity('TASK_COMPLETE', `Completed: ${quest.title}`, quest.title);
+      // Privacy-preserving feed: username + action + XP (no task details)
+      const baseReward = (quest.xpReward || 50) + 10;
+      const boostFactor = (player.activeEffects || []).filter(
+        (e) => e.type === "XP_BOOST" && Date.now() < e.startTime + e.duration
+      ).reduce((sum, b) => sum + b.value, 0);
+      const totalFeedReward = baseReward + Math.floor(baseReward * boostFactor);
+      logActivity('TASK_COMPLETE', `${currentUser || player.name} just completed a task and earned ${totalFeedReward} XP`, undefined, undefined, totalFeedReward);
       // Update weekly stats
       setWeeklyTaskCount(prev => prev + 1);
       setWeeklyTotalCount(prev => prev + 1);
@@ -2706,6 +2718,34 @@ const App: React.FC = () => {
     logActivity('SYSTEM', `Admin: ${message}`, message);
   };
 
+  const handleUserPostToFeed = (message: string) => {
+    logActivity('USER_POST', message, undefined, undefined, undefined, true);
+  };
+
+  const handleUpvoteFeed = (activityId: string) => {
+    const username = currentUser || player.name;
+    setExecutionFeed(prev => prev.map(a => {
+      if (a.id === activityId) {
+        const upvotes = a.upvotes || [];
+        if (upvotes.includes(username)) {
+          return { ...a, upvotes: upvotes.filter(u => u !== username) };
+        }
+        return { ...a, upvotes: [...upvotes, username] };
+      }
+      return a;
+    }));
+    // Persist upvote change to DB
+    const activity = executionFeed.find(a => a.id === activityId);
+    if (activity) {
+      const upvotes = activity.upvotes || [];
+      const username = currentUser || player.name;
+      const newUpvotes = upvotes.includes(username)
+        ? upvotes.filter(u => u !== username)
+        : [...upvotes, username];
+      saveFeedActivityToDB({ ...activity, upvotes: newUpvotes });
+    }
+  };
+
   const handleShareProtocol = (imageDataUrl?: string) => {
     logActivity('PROTOCOL_SHARE', `${currentUser} shared their protocol card with the cabal.`, undefined, imageDataUrl);
   };
@@ -3127,6 +3167,8 @@ const App: React.FC = () => {
               onAdminPost={player.isAdmin ? handleAdminPostToFeed : undefined}
               onShareProtocol={handleShareProtocol}
               onDeleteActivity={handleDeleteFeedActivity}
+              onUserPost={handleUserPostToFeed}
+              onUpvote={handleUpvoteFeed}
             />
           )}
           {currentView === "TEAM" && (

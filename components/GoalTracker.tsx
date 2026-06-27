@@ -163,8 +163,13 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     const goal: Goal = {
       id: crypto.randomUUID(),
       title: newTitle,
-      description: `${planDays.length} day plan (${new Date(newDeadline).toLocaleDateString()})`,
-      notes: planDays.map(d => `Day ${d.day}: ${d.tasks.map(t => t.title).join(', ')}`).join('\n'),
+      description: `${newTitle} — ${planDays.length}-day plan to deadline ${new Date(newDeadline).toLocaleDateString()}`,
+      notes: JSON.stringify({
+        deadline: newDeadline,
+        days: planDays,
+        questions,
+        answers,
+      }),
       completed: false,
       deadline: new Date(newDeadline).getTime(),
     };
@@ -190,7 +195,6 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
   };
 
   const totalTasks = planDays.reduce((sum, d) => sum + d.tasks.length, 0);
-  const checkedTasks = useState<Set<string>>(new Set())[0];
 
   return (
     <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-10 relative">
@@ -334,25 +338,55 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
                     </div>
                   )}
                   <div className="pl-8">
-                    {goal.notes ? (
-                      <div className="space-y-0.5">
-                        {goal.notes.split('\n').filter(Boolean).map((line, i) => {
-                          const dayMatch = line.match(/^Day (\d+):/);
-                          if (dayMatch) {
-                            return (
-                              <div key={i} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 font-mono">
-                                <ListChecks size={10} className="shrink-0 text-system-blue" />
-                                <span className="text-system-blue font-bold">{dayMatch[0]}</span>
-                                <span>{line.slice(dayMatch[0].length)}</span>
-                              </div>
-                            );
+                    {(() => {
+                      let parsedDays: any[] | null = null;
+                      try {
+                        if (goal.notes) {
+                          const parsed = JSON.parse(goal.notes);
+                          if (parsed && parsed.days && Array.isArray(parsed.days)) {
+                            parsedDays = parsed.days;
                           }
-                          return null;
-                        })}
-                      </div>
-                    ) : (
-                      <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2">{goal.description}</p>
-                    )}
+                        }
+                      } catch {}
+                      if (parsedDays && parsedDays.length > 0) {
+                        return (
+                          <div className="space-y-1">
+                            <div className="text-[10px] font-mono text-cyan-400 mb-1 flex items-center gap-2">
+                              <ListChecks size={10} /> {parsedDays.length}-day roadmap
+                            </div>
+                            {parsedDays.slice(0, 7).map((section: any) => (
+                              <div key={section.day} className="flex items-start gap-1 text-xs text-gray-400 font-mono">
+                                <span className="text-system-blue font-bold shrink-0">Day {section.day}:</span>
+                                <span className="truncate">{(section.tasks || []).map((t: any) => t.title).join(', ')}</span>
+                              </div>
+                            ))}
+                            {parsedDays.length > 7 && (
+                              <div className="text-[10px] text-gray-600 font-mono">+{parsedDays.length - 7} more days</div>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (goal.notes) {
+                        return (
+                          <div className="space-y-0.5">
+                            {goal.notes.split('\n').filter(Boolean).map((line, i) => {
+                              const dayMatch = line.match(/^Day (\d+):/);
+                              if (dayMatch) {
+                                return (
+                                  <div key={i} className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 font-mono">
+                                    <ListChecks size={10} className="shrink-0 text-system-blue" />
+                                    <span className="text-system-blue font-bold">{dayMatch[0]}</span>
+                                    <span>{line.slice(dayMatch[0].length)}</span>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
+                          </div>
+                        );
+                      }
+                      return <p className="text-gray-600 dark:text-gray-400 text-sm line-clamp-2">{goal.description}</p>;
+                    })()}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
