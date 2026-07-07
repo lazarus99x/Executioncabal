@@ -864,12 +864,12 @@ const App: React.FC = () => {
               }
 
               setPlayer({
-                ...loadedPlayer,
-                name: loadedPlayer.name || currentUser,
-                isAdmin: effectiveIsAdmin || loadedPlayer.isAdmin,
-                isBanned: suspendUser, // Set local ban state based on calculation
-                lastActiveTimestamp: suspendUser ? lastActive : now, // Don't update timestamp if suspended until they pay
-              });
+                              ...loadedPlayer,
+                              name: loadedPlayer.name || currentUser,
+                              isAdmin: effectiveIsAdmin || loadedPlayer.isAdmin === true,
+                              isBanned: suspendUser,
+                              lastActiveTimestamp: suspendUser ? lastActive : now,
+                            });
 
               setQuests(dbState.quests.length ? dbState.quests : []);
               setGoals(dbState.goals || []);

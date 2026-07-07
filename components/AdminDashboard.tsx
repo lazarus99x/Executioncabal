@@ -67,6 +67,7 @@ type ActionType =
   | "BAN"
   | "FORCE_UNBAN"
   | "EDIT_USER"
+  | "GRANT_ADMIN"
   | null;
 
 // --- 3D ACTIVITY GLOBE COMPONENT ---
@@ -584,6 +585,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         });
       }
 
+      if (type === "GRANT_ADMIN") {
+        updatedFields = { isAdmin: true };
+        await updateUserStatus(targetUsername, updatedFields);
+        await logSystemEvent({
+          username: currentUser,
+          event_type: "ADMIN_ACTION",
+          ip_address: "SYSTEM",
+          country: "SYSTEM",
+          details: `Admin GRANTED ADMIN to ${targetUsername}`,
+        });
+      }
+
       if (targetUsername === currentUser && onSyncPlayer) {
         onSyncPlayer(updatedFields);
       }
@@ -1000,6 +1013,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           title="Ban Agent"
                         >
                           <Ban size={14} /> BAN
+                        </button>
+                        <button
+                          onClick={() => openActionModal("GRANT_ADMIN", user.username)}
+                          disabled={actionLoading !== null}
+                          className="bg-purple-900/50 hover:bg-purple-600 text-purple-200 hover:text-white px-3 py-2 rounded text-[10px] flex items-center gap-2 transition-colors border border-purple-900"
+                          title="Grant Admin Role"
+                        >
+                          <Crown size={14} /> ADMIN
                         </button>
                       </td>
                     </tr>
