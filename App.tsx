@@ -2803,9 +2803,9 @@ const App: React.FC = () => {
   };
   const handleCreateQuestFromKanban = (title: string, desc: string, startTime?: number, deadline?: number) => {
     const q = {
-      id: crypto.randomUUID(),
+      id: 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       title,
-      description: desc || `Kanban task: ${title}`,
+      description: desc || title,
       type: TaskType.SIDE,
       difficulty: Rank.E,
       xpReward: 50,

@@ -64,7 +64,16 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
   useEffect(() => {
     const ls = localStorage.getItem('ec_kanban_data');
     if (ls) {
-      try { setCards(JSON.parse(ls)); } catch {}
+      try { 
+        const parsed = JSON.parse(ls);
+        // Migrate old seconds timestamps to ms
+        const migrated = parsed.map((c: any) => ({
+          ...c,
+          startTime: c.startTime && c.startTime < 100000000000 ? c.startTime * 1000 : c.startTime,
+          deadline: c.deadline && c.deadline < 100000000000 ? c.deadline * 1000 : c.deadline,
+        }));
+        setCards(migrated);
+      } catch {}
     }
     if (onLoad) {
       onLoad().then(db => {
@@ -85,8 +94,8 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
     if (onSave) onSave(cards);
   }, [cards, spawned, loading]);
 
-  const nt = () => Math.floor(Date.now() / 1000);
-  const ts = (s?: number) => s ? new Date(s * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+  const nt = () => Date.now(); // ms
+  const ts = (s?: number) => s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 
   const show = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2000); };
 
@@ -99,15 +108,15 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
   const openEdit = (c: KanbanCard) => {
     setModal({ card: c });
     setMTitle(c.title); setMDesc(c.desc); setMEnergy(c.energy); setMColId(c.colId);
-    setMStart(c.startTime ? new Date(c.startTime * 1000).toISOString().slice(0, 16) : '');
-    setMDead(c.deadline ? new Date(c.deadline * 1000).toISOString().slice(0, 16) : '');
+    setMStart(c.startTime ? new Date(c.startTime).toISOString().slice(0, 16) : '');
+    setMDead(c.deadline ? new Date(c.deadline).toISOString().slice(0, 16) : '');
   };
 
   const save = () => {
     if (!mTitle.trim()) { show('Name required'); return; }
     const now = nt();
-    const startT = mStart ? Math.floor(new Date(mStart).getTime() / 1000) : undefined;
-    const deadT = mDead ? Math.floor(new Date(mDead).getTime() / 1000) : undefined;
+    const startT = mStart ? new Date(mStart).getTime() : undefined;
+    const deadT = mDead ? new Date(mDead).getTime() : undefined;
 
     if (modal?.card) {
       setCards(p => p.map(c => c.id === modal.card!.id ? {
