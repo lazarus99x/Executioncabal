@@ -27,7 +27,7 @@ interface GoalTrackerProps {
   onAIRespond?: (prompt: string) => Promise<string>;
   onSaveKanban?: (cards: any[]) => void;
   onLoadKanban?: () => Promise<any[]>;
-  onCreateQuestFromKanban?: (title: string, desc: string) => void;
+  onCreateQuestFromKanban?: (title: string, desc: string, startTime?: number, deadline?: number) => void;
 }
 
 const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onDeleteGoal, onGenerateTasks, isGenerating, onAIRespond, onSaveKanban, onLoadKanban, onCreateQuestFromKanban }) => {

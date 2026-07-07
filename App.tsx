@@ -2801,7 +2801,7 @@ const App: React.FC = () => {
     if (!currentUser) return [];
     return loadKanbanCardsFromDB(currentUser);
   };
-  const handleCreateQuestFromKanban = (title: string, desc: string) => {
+  const handleCreateQuestFromKanban = (title: string, desc: string, startTime?: number, deadline?: number) => {
     const q = {
       id: crypto.randomUUID(),
       title,
@@ -2814,6 +2814,8 @@ const App: React.FC = () => {
       requirements: [],
       durationMinutes: 60,
       verificationAttempts: 0,
+      startTime,
+      deadline,
     };
     if (currentUser) upsertQuest(q, currentUser);
     setQuests((p) => [q as any, ...p]);

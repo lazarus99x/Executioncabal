@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit2, Trash2, Target } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Calendar } from 'lucide-react';
 
 interface KanbanCard {
   id: string;
@@ -10,230 +10,190 @@ interface KanbanCard {
   colId: string;
   created: string;
   updated: string;
+  startTime?: number;
+  deadline?: number;
 }
 
 interface KanbanColumn {
   id: string;
   icon: string;
   title: string;
-  color: string;
 }
 
-const DEFAULT_COLUMNS: KanbanColumn[] = [
-  { id: 'col-execute', icon: '🔥', title: 'execute now', color: '#f87171' },
-  { id: 'col-hustle', icon: '🚀', title: 'side hustles', color: '#818cf8' },
-  { id: 'col-career', icon: '💼', title: 'career & brand', color: '#34d399' },
-  { id: 'col-foundations', icon: '⚡', title: 'foundations', color: '#fbbf24' },
+const COLUMNS: KanbanColumn[] = [
+  { id: 'col-execute', icon: '🔥', title: 'execute now' },
+  { id: 'col-hustle', icon: '🚀', title: 'side hustles' },
+  { id: 'col-career', icon: '💼', title: 'career & brand' },
+  { id: 'col-foundations', icon: '⚡', title: 'foundations' },
 ];
 
-const ENERGY_LABELS: Record<string, string> = { high: '⚡⚡⚡ crush', mid: '⚡⚡ steady', low: '⚡ light' };
+const ENERGY = { high: '⚡⚡⚡', mid: '⚡⚡', low: '⚡' };
+const ENERGY_STYLE = {
+  high: 'bg-red-500/15 text-red-400 border-red-500/25',
+  mid: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/25',
+  low: 'bg-green-500/15 text-green-400 border-green-500/25',
+};
 
-const STORAGE_KEY = 'ec_kanban_data';
-const CREATED_IDS_KEY = 'ec_kanban_created_quests';
-
-interface KanbanBoardProps {
+interface Props {
   onSave?: (cards: KanbanCard[]) => void;
   onLoad?: () => Promise<KanbanCard[]>;
-  onCreateQuest?: (title: string, desc: string) => void;
+  onCreateQuest?: (title: string, desc: string, startTime?: number, deadline?: number) => void;
 }
 
-const KanbanBoard: React.FC<KanbanBoardProps> = ({ onSave, onLoad, onCreateQuest }) => {
-  const [columns] = useState<KanbanColumn[]>(DEFAULT_COLUMNS);
-  const [cards, setCards] = useState<KanbanCard[]>(() => {
-    try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved) : []; }
-    catch { return []; }
-  });
-  const [showModal, setShowModal] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [modalColId, setModalColId] = useState('');
-  const [modalTitle, setModalTitle] = useState('');
-  const [modalDesc, setModalDesc] = useState('');
-  const [modalEnergy, setModalEnergy] = useState<'high' | 'mid' | 'low'>('mid');
-  const [toast, setToast] = useState('');
+const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
+  const [cards, setCards] = useState<KanbanCard[]>([]);
+  const [loading, setLoading] = useState(true);
   const [draggedId, setDraggedId] = useState<string | null>(null);
-  const [touchDragId, setTouchDragId] = useState<string | null>(null);
+  const [touchTarget, setTouchTarget] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
+  const [modal, setModal] = useState<{ card?: KanbanCard; colId?: string } | null>(null);
+  const [mTitle, setMTitle] = useState('');
+  const [mDesc, setMDesc] = useState('');
+  const [mEnergy, setMEnergy] = useState<'high' | 'mid' | 'low'>('mid');
+  const [mColId, setMColId] = useState('col-execute');
+  const [mStart, setMStart] = useState('');
+  const [mDead, setMDead] = useState('');
 
-  // Track which card IDs have already spawned a quest
-  const [createdQuestIds, setCreatedQuestIds] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem(CREATED_IDS_KEY);
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch { return new Set(); }
-  });
+  // Track which cards already spawned a quest (in-memory only)
+  const [spawned, setSpawned] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    localStorage.setItem(CREATED_IDS_KEY, JSON.stringify(Array.from(createdQuestIds)));
-  }, [createdQuestIds]);
-
+  // Load from DB on mount
   useEffect(() => {
     if (onLoad) {
-      onLoad().then(dbCards => {
-        if (dbCards && dbCards.length > 0) {
-          setCards(dbCards);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(dbCards));
-        }
-      }).catch(() => {});
-    }
+      onLoad().then(db => { if (db?.length) setCards(db); }).catch(() => {})
+        .finally(() => setLoading(false));
+    } else setLoading(false);
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
-    if (onSave) onSave(cards);
-  }, [cards]);
+  // Save on change
+  useEffect(() => { if (!loading && onSave) onSave(cards); }, [cards, loading]);
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 2200); };
+  const nt = () => Math.floor(Date.now() / 1000);
+  const ts = (s?: number) => s ? new Date(s * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
 
-  const nowStr = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const show = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2000); };
 
-  const openNewCard = (colId?: string) => {
-    setEditId(null); setModalTitle(''); setModalDesc(''); setModalEnergy('mid');
-    setModalColId(colId || columns[0].id); setShowModal(true);
+  const openNew = (colId?: string) => {
+    setModal({ colId: colId || 'col-execute' });
+    setMTitle(''); setMDesc(''); setMEnergy('mid');
+    setMColId(colId || 'col-execute'); setMStart(''); setMDead('');
   };
 
-  const openEditCard = (card: KanbanCard) => {
-    setEditId(card.id); setModalTitle(card.title); setModalDesc(card.desc);
-    setModalEnergy(card.energy); setModalColId(card.colId); setShowModal(true);
+  const openEdit = (c: KanbanCard) => {
+    setModal({ card: c });
+    setMTitle(c.title); setMDesc(c.desc); setMEnergy(c.energy); setMColId(c.colId);
+    setMStart(c.startTime ? new Date(c.startTime * 1000).toISOString().slice(0, 16) : '');
+    setMDead(c.deadline ? new Date(c.deadline * 1000).toISOString().slice(0, 16) : '');
   };
 
-  const saveCard = () => {
-    if (!modalTitle.trim()) { showToast('Task needs a name'); return; }
-    const now = nowStr();
-    if (editId) {
-      setCards(prev => prev.map(c =>
-        c.id === editId ? { ...c, title: modalTitle.trim(), desc: modalDesc.trim(), energy: modalEnergy, colId: modalColId, updated: now } : c
-      ));
-      showToast('Task updated ✓');
+  const save = () => {
+    if (!mTitle.trim()) { show('Name required'); return; }
+    const now = nt();
+    const startT = mStart ? Math.floor(new Date(mStart).getTime() / 1000) : undefined;
+    const deadT = mDead ? Math.floor(new Date(mDead).getTime() / 1000) : undefined;
+
+    if (modal?.card) {
+      setCards(p => p.map(c => c.id === modal.card!.id ? {
+        ...c, title: mTitle.trim(), desc: mDesc.trim(), energy: mEnergy, colId: mColId,
+        startTime: startT, deadline: deadT, updated: String(now),
+      } : c));
+      show('Updated');
     } else {
-      const newCard: KanbanCard = {
-        id: 'c' + Date.now() + Math.random().toString(36).slice(2, 6),
-        title: modalTitle.trim(), desc: modalDesc.trim(), energy: modalEnergy,
-        colId: modalColId, created: now, updated: now,
+      const card: KanbanCard = {
+        id: 'c' + now + Math.random().toString(36).slice(2, 6),
+        title: mTitle.trim(), desc: mDesc.trim(), energy: mEnergy, colId: mColId,
+        created: String(now), updated: String(now), startTime: startT, deadline: deadT,
       };
-      setCards(prev => [newCard, ...prev]);
-      showToast('Task added ✓');
+      setCards(p => [card, ...p]);
+      show('Added');
     }
-    setShowModal(false);
+    setModal(null);
   };
 
-  const deleteCard = (id: string) => {
-    if (!confirm('Delete this task?')) return;
-    setCards(prev => prev.filter(c => c.id !== id));
-    showToast('Task deleted');
-  };
+  const del = (id: string) => { setCards(p => p.filter(c => c.id !== id)); show('Deleted'); };
 
-  const moveCard = (cardId: string, targetColId: string) => {
-    setCards(prev => {
-      const card = prev.find(c => c.id === cardId);
-      if (!card) return prev;
-      const updated = prev.map(c => c.id === cardId ? { ...c, colId: targetColId, updated: nowStr() } : c);
-      
-      // Auto-create quest when moved to execute now
-      if (targetColId === 'col-execute' && card.colId !== 'col-execute') {
-        if (onCreateQuest && !createdQuestIds.has(cardId)) {
-          setCreatedQuestIds(prev => new Set(prev).add(cardId));
-          setTimeout(() => onCreateQuest(card.title, card.desc), 100);
-        }
+  const move = (id: string, to: string) => {
+    setCards(p => p.map(c => {
+      if (c.id !== id) return c;
+      // Auto-create quest on move to execute
+      if (to === 'col-execute' && c.colId !== 'col-execute' && onCreateQuest && !spawned.has(id)) {
+        setSpawned(prev => new Set(prev).add(id));
+        setTimeout(() => onCreateQuest(c.title, c.desc, c.startTime, c.deadline), 50);
       }
-      return updated;
-    });
+      return { ...c, colId: to, updated: String(nt()) };
+    }));
   };
 
-  const exportData = () => {
-    const blob = new Blob([JSON.stringify({ columns, cards }, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `kanban-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(url); showToast('Exported ✓');
+  const drop = (colId: string) => {
+    if (draggedId) { move(draggedId, colId); setDraggedId(null); }
+    if (touchTarget) { move(touchTarget, colId); setTouchTarget(null); }
   };
 
-  const importData = () => {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = '.json';
-    input.onchange = (e: any) => {
-      const file = e.target.files?.[0]; if (!file) return;
+  const exp = () => {
+    const blob = new Blob([JSON.stringify({ cards }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `board-${new Date().toISOString().slice(0, 10)}.json`; a.click(); show('Exported');
+  };
+
+  const imp = () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
+    inp.onchange = (e: any) => {
+      const f = e.target.files?.[0]; if (!f) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
         try {
-          const imported = JSON.parse(ev.target?.result as string);
-          if (!imported.columns || !imported.cards) throw new Error('invalid');
-          if (confirm(`Import ${imported.cards.length} cards? Current data will be replaced.`)) {
-            setCards(imported.cards); showToast(`Imported ${imported.cards.length} cards ✓`);
-          }
-        } catch { showToast('Invalid file — not a kanban export'); }
+          const d = JSON.parse(ev.target?.result as string);
+          if (!d.cards) throw '';
+          if (confirm(`Import ${d.cards.length} cards?`)) { setCards(d.cards); show(`Imported ${d.cards.length}`); }
+        } catch { show('Invalid file'); }
       };
-      reader.readAsText(file);
+      reader.readAsText(f);
     };
-    input.click();
+    inp.click();
   };
 
-  const getColCards = (colId: string) => cards.filter(c => c.colId === colId);
-  const totalCards = cards.length;
+  const byCol = (id: string) => cards.filter(c => c.colId === id);
 
-  const handleDrop = (colId: string) => {
-    if (draggedId) { moveCard(draggedId, colId); setDraggedId(null); }
-    if (touchDragId) { moveCard(touchDragId, colId); setTouchDragId(null); }
-  };
+  if (loading) return <div className="text-center py-8 text-gray-500 text-xs">Loading board...</div>;
 
   return (
-    <div className="w-full max-w-full overflow-hidden">
-      {/* Header - mobile first */}
-      <div className="flex flex-col gap-3 mb-4">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <h3 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">⚡ Board</h3>
-          <div className="flex gap-1.5 text-[10px] font-mono text-gray-500">
-            <span className="bg-[#14141f] px-2 py-1 rounded border border-[#1e1e32]">
-              <strong className="text-white">{totalCards}</strong> tasks
-            </span>
-          </div>
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-white uppercase tracking-wider">Board</span>
+          <span className="text-[10px] text-gray-500 font-mono bg-[#14141f] px-2 py-0.5 rounded border border-[#1e1e32]">{cards.length}</span>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          <button onClick={exportData} className="text-[9px] sm:text-[10px] font-bold font-mono px-2 py-1.5 rounded bg-[#1e1e32] border border-[#2a2a45] text-gray-400 hover:text-white active:scale-95 transition-all touch-manipulation">
-            ⬇ export
-          </button>
-          <button onClick={importData} className="text-[9px] sm:text-[10px] font-bold font-mono px-2 py-1.5 rounded bg-[#1e1e32] border border-[#2a2a45] text-gray-400 hover:text-white active:scale-95 transition-all touch-manipulation">
-            ⬆ import
-          </button>
-          <button onClick={() => { if (confirm('Clear all board data?')) { localStorage.removeItem(STORAGE_KEY); setCards([]); showToast('Cleared'); } }} className="text-[9px] sm:text-[10px] font-bold font-mono px-2 py-1.5 rounded bg-[#1e1e32] border border-[#2a2a45] text-gray-400 hover:text-white active:scale-95 transition-all touch-manipulation">
-            ⟳ reset
-          </button>
-          <button onClick={() => openNewCard()} className="text-[9px] sm:text-[10px] font-bold font-mono px-2.5 py-1.5 rounded bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-lg active:scale-95 transition-all touch-manipulation">
-            + new task
-          </button>
+        <div className="flex gap-1">
+          <button onClick={exp} className="text-[9px] font-mono px-2 py-1 rounded bg-[#1e1e32] text-gray-400 hover:text-white active:scale-95 transition-all">⬇</button>
+          <button onClick={imp} className="text-[9px] font-mono px-2 py-1 rounded bg-[#1e1e32] text-gray-400 hover:text-white active:scale-95 transition-all">⬆</button>
+          <button onClick={() => openNew()} className="text-[9px] font-mono px-2.5 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95 transition-all">+ add</button>
         </div>
       </div>
 
-      {/* Board - single column mobile, 2 col tablet, 4 col desktop */}
+      {/* Columns */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-        {columns.map(col => {
-          const colCards = getColCards(col.id);
+        {COLUMNS.map(col => {
+          const colCards = byCol(col.id);
           return (
-            <div key={col.id} className="bg-[#0f0f1a] rounded-xl border border-[#1a1a2e] flex flex-col min-h-[180px] sm:min-h-[250px]">
-              {/* Column Header */}
-              <div className="flex items-center justify-between px-2.5 sm:px-3 py-2 border-b border-[#1a1a2e]">
+            <div key={col.id} className="bg-[#0f0f1a] rounded-lg border border-[#1a1a2e] flex flex-col min-h-[160px]">
+              <div className="flex items-center justify-between px-2.5 py-2 border-b border-[#1a1a2e]">
                 <div className="flex items-center gap-1.5 min-w-0">
-                  <span className="text-sm sm:text-base shrink-0">{col.icon}</span>
-                  <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wide text-gray-300 truncate">{col.title}</span>
-                  <span className="text-[9px] sm:text-[10px] bg-[#1a1a2e] px-1.5 sm:px-2 py-0.5 rounded-full text-gray-500 font-semibold shrink-0">{colCards.length}</span>
+                  <span className="text-sm">{col.icon}</span>
+                  <span className="text-[10px] font-bold uppercase text-gray-300 truncate">{col.title}</span>
+                  <span className="text-[9px] text-gray-500 bg-[#1a1a2e] px-1.5 rounded-full">{colCards.length}</span>
                 </div>
-                <button onClick={() => openNewCard(col.id)} className="text-gray-600 hover:text-gray-300 hover:bg-[#1a1a2e] p-1 rounded transition-colors touch-manipulation">
-                  <Plus size={14} />
-                </button>
+                <button onClick={() => openNew(col.id)} className="text-gray-600 hover:text-gray-300 p-0.5"><Plus size={13} /></button>
               </div>
-
-              {/* Cards Container - mobile tap to select target, desktop drag */}
               <div
-                className="flex-1 p-1.5 sm:p-2 space-y-1.5 min-h-[60px] overflow-y-auto"
-                onDragOver={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = '#14142a'; (e.currentTarget as HTMLElement).style.borderRadius = '8px'; }}
-                onDragLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                onDrop={(e) => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = 'transparent'; handleDrop(col.id); }}
-                onTouchMove={(e) => { e.preventDefault(); }}
-                onTouchEnd={() => handleDrop(col.id)}
+                className="flex-1 p-1.5 space-y-1 min-h-[50px]"
+                onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = '#14142a'; }}
+                onDragLeave={e => { (e.currentTarget as HTMLElement).style.background = ''; }}
+                onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.background = ''; drop(col.id); }}
+                onTouchEnd={() => drop(col.id)}
               >
                 {colCards.length === 0 ? (
-                  <div className="text-center py-5 sm:py-6 text-[#3f3f5e] text-[10px] sm:text-[11px]">
-                    <span className="text-xl sm:text-2xl block mb-0.5">+</span>
-                    drop here
-                  </div>
+                  <div className="text-center py-5 text-[#3f3f5e] text-[9px]">+ drop here</div>
                 ) : (
                   colCards.map(card => (
                     <div
@@ -241,38 +201,25 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onSave, onLoad, onCreateQuest
                       draggable
                       onDragStart={() => setDraggedId(card.id)}
                       onDragEnd={() => setDraggedId(null)}
-                      onTouchStart={() => setTouchDragId(card.id)}
-                      onTouchEnd={(e) => { e.preventDefault(); setTouchDragId(null); }}
-                      className="bg-[#14142a] border border-[#1e1e3a] rounded-lg p-2.5 sm:p-3 cursor-grab active:cursor-grabbing hover:border-[#36366a] hover:bg-[#181830] transition-all select-none touch-manipulation"
+                      onTouchStart={() => setTouchTarget(card.id)}
+                      onTouchEnd={e => { e.preventDefault(); setTouchTarget(null); }}
+                      className="bg-[#14142a] border border-[#1e1e3a] rounded-lg p-2 cursor-grab active:cursor-grabbing hover:border-[#36366a] transition-all group touch-manipulation"
                     >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[12px] sm:text-[13px] font-semibold text-gray-200 leading-relaxed break-words">{card.title}</div>
-                          {card.desc && <div className="text-[9px] sm:text-[10px] text-gray-500 mt-1 leading-relaxed break-words line-clamp-2">{card.desc}</div>}
+                      <div className="flex items-start gap-1.5">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-semibold text-gray-200 leading-snug break-words">{card.title}</div>
+                          {card.desc && <div className="text-[9px] text-gray-500 mt-0.5 line-clamp-1">{card.desc}</div>}
                         </div>
-                        <div className="flex gap-0.5 shrink-0">
-                          <button onClick={(e) => { e.stopPropagation(); openEditCard(card); }} className="text-gray-600 hover:text-gray-300 p-1 rounded hover:bg-[#2a2a45] touch-manipulation hidden sm:block">
-                            <Edit2 size={10} />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); deleteCard(card.id); }} className="text-gray-600 hover:text-red-400 p-1 rounded hover:bg-[#2a1a1a] touch-manipulation">
-                            <Trash2 size={10} />
-                          </button>
-                        </div>
+                        <button onClick={() => del(card.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 p-0.5 transition-opacity shrink-0"><Trash2 size={10} /></button>
                       </div>
-                      <div className="flex items-center justify-between mt-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${
-                            card.energy === 'high' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                            card.energy === 'mid' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                            'bg-green-500/20 text-green-400 border border-green-500/30'
-                          }`}>
-                            {ENERGY_LABELS[card.energy]}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[8px] sm:text-[9px] text-[#3f3f5e]">{card.created}</span>
-                          {card.updated !== card.created && <span className="text-[7px] sm:text-[8px] text-[#2a2a45]">· upd</span>}
-                        </div>
+                      <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded-full border font-semibold ${ENERGY_STYLE[card.energy]}`}>{ENERGY[card.energy]}</span>
+                        {card.startTime && <span className="text-[8px] text-gray-600 flex items-center gap-0.5"><Clock size={8} />{ts(card.startTime)}</span>}
+                        {card.deadline && <span className="text-[8px] text-orange-400/60 flex items-center gap-0.5"><Calendar size={8} />{ts(card.deadline)}</span>}
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-[7px] text-[#3f3f5e]">{ts(Number(card.created))}</span>
+                        <button onClick={() => openEdit(card)} className="text-[8px] text-gray-600 hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity">✎</button>
                       </div>
                     </div>
                   ))
@@ -283,47 +230,52 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onSave, onLoad, onCreateQuest
         })}
       </div>
 
-      {/* Mobile floating action button */}
-      <button
-        onClick={() => openNewCard()}
-        className="fixed bottom-6 right-6 sm:hidden w-12 h-12 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xl flex items-center justify-center active:scale-90 transition-all z-40 touch-manipulation"
-      >
-        <Plus size={22} />
-      </button>
+      {/* Mobile FAB */}
+      <button onClick={() => openNew()} className="fixed bottom-6 right-6 sm:hidden w-11 h-11 rounded-full bg-indigo-600 text-white shadow-xl flex items-center justify-center active:scale-90 z-40"><Plus size={20} /></button>
 
       {/* Modal */}
       <AnimatePresence>
-        {showModal && (
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4"
-            onClick={() => setShowModal(false)}
+        {modal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3"
+            onClick={() => setModal(null)}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-[#14142a] border border-[#2a2a45] rounded-xl p-4 sm:p-5 w-full max-w-sm shadow-2xl mx-auto"
-              onClick={(e) => e.stopPropagation()}
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-[#14142a] border border-[#2a2a45] rounded-xl p-4 w-full max-w-xs shadow-2xl"
+              onClick={e => e.stopPropagation()}
             >
-              <h2 className="text-sm font-bold text-white mb-3">{editId ? 'Edit Task' : 'New Task'}</h2>
-              <input className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-3 py-2.5 text-sm text-white mb-2.5 outline-none focus:border-indigo-500" placeholder="Task name" maxLength={60} value={modalTitle} onChange={(e) => setModalTitle(e.target.value)} autoFocus />
-              <textarea className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-white mb-2.5 outline-none focus:border-indigo-500 resize-none" placeholder="Notes (optional)" maxLength={200} rows={2} value={modalDesc} onChange={(e) => setModalDesc(e.target.value)} />
-              <div className="mb-3">
-                <label className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Energy ⚡</label>
-                <select className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-2.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500" value={modalEnergy} onChange={(e) => setModalEnergy(e.target.value as any)}>
-                  <option value="high">High ⚡⚡⚡</option>
-                  <option value="mid">Medium ⚡⚡</option>
-                  <option value="low">Low ⚡</option>
-                </select>
+              <h2 className="text-sm font-bold text-white mb-3">{modal?.card ? 'Edit' : 'New Task'}</h2>
+              <input className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-white mb-2 outline-none focus:border-indigo-500" placeholder="Task" maxLength={60} value={mTitle} onChange={e => setMTitle(e.target.value)} autoFocus />
+              <textarea className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-3 py-2 text-sm text-white mb-2 outline-none focus:border-indigo-500 resize-none" placeholder="Notes" maxLength={200} rows={1} value={mDesc} onChange={e => setMDesc(e.target.value)} />
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div>
+                  <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-0.5">⚡ Energy</label>
+                  <select className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500" value={mEnergy} onChange={e => setMEnergy(e.target.value as any)}>
+                    <option value="high">⚡⚡⚡ High</option>
+                    <option value="mid">⚡⚡ Medium</option>
+                    <option value="low">⚡ Low</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-0.5">📋 Column</label>
+                  <select className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500" value={mColId} onChange={e => setMColId(e.target.value)}>
+                    {COLUMNS.map(c => <option key={c.id} value={c.id}>{c.icon} {c.title}</option>)}
+                  </select>
+                </div>
               </div>
-              <div className="mb-4">
-                <label className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide block mb-1">Column</label>
-                <select className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded-lg px-2.5 py-2.5 text-xs text-white outline-none focus:border-indigo-500" value={modalColId} onChange={(e) => setModalColId(e.target.value)}>
-                  {columns.map(c => (<option key={c.id} value={c.id}>{c.icon} {c.title}</option>))}
-                </select>
+              <div className="grid grid-cols-2 gap-2 mb-3">
+                <div>
+                  <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-0.5">🕐 Start</label>
+                  <input type="datetime-local" className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500" value={mStart} onChange={e => setMStart(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-0.5">⏰ Deadline</label>
+                  <input type="datetime-local" className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500" value={mDead} onChange={e => setMDead(e.target.value)} />
+                </div>
               </div>
               <div className="flex gap-2 justify-end">
-                <button onClick={() => setShowModal(false)} className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs font-bold bg-[#1e1e32] text-gray-400 hover:bg-[#2a2a45] transition-colors touch-manipulation">CANCEL</button>
-                <button onClick={saveCard} className="flex-1 sm:flex-none px-4 py-2.5 rounded-lg text-xs font-bold bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:shadow-md active:scale-95 transition-all touch-manipulation">{editId ? 'UPDATE' : 'ADD TASK'}</button>
+                <button onClick={() => setModal(null)} className="flex-1 py-2 rounded-lg text-[10px] font-bold bg-[#1e1e32] text-gray-400 hover:bg-[#2a2a45]">CANCEL</button>
+                <button onClick={save} className="flex-1 py-2 rounded-lg text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95">{modal?.card ? 'UPDATE' : 'ADD'}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -331,16 +283,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({ onSave, onLoad, onCreateQuest
       </AnimatePresence>
 
       {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 40 }}
-            className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 left-3 sm:left-auto bg-[#1a1a2e] border border-[#2a2a45] px-3 sm:px-4 py-2.5 rounded-lg text-xs text-gray-200 shadow-xl z-[200] text-center"
-          >
-            {toast}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <AnimatePresence>{toast && <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 30 }} className="fixed bottom-20 sm:bottom-6 left-3 right-3 sm:left-auto sm:right-6 bg-[#1a1a2e] border border-[#2a2a45] px-3 py-2 rounded-lg text-xs text-gray-200 shadow-xl z-[200] text-center max-w-[200px] mx-auto sm:mx-0">{toast}</motion.div>}</AnimatePresence>
     </div>
   );
 };
