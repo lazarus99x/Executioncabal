@@ -2801,7 +2801,7 @@ const App: React.FC = () => {
     if (!currentUser) return [];
     return loadKanbanCardsFromDB(currentUser);
   };
-  const handleCreateQuestFromKanban = (title: string, desc: string, startTime?: number, deadline?: number) => {
+  const handleCreateQuestFromKanban = (title: string, desc: string, startTime?: number, deadline?: number, requirements?: string[]) => {
     const q = {
       id: 'k' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
       title,
@@ -2811,7 +2811,7 @@ const App: React.FC = () => {
       xpReward: 50,
       penaltyXP: 100,
       status: TaskStatus.IDLE,
-      requirements: [],
+      requirements: requirements?.filter(Boolean) || [],
       durationMinutes: 60,
       verificationAttempts: 0,
       startTime,

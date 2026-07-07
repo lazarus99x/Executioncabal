@@ -12,6 +12,7 @@ interface KanbanCard {
   updated: string;
   startTime?: number;
   deadline?: number;
+  requirements: string[];
 }
 
 interface KanbanColumn {
@@ -37,7 +38,7 @@ const ENERGY_STYLE = {
 interface Props {
   onSave?: (cards: KanbanCard[]) => void;
   onLoad?: () => Promise<KanbanCard[]>;
-  onCreateQuest?: (title: string, desc: string, startTime?: number, deadline?: number) => void;
+  onCreateQuest?: (title: string, desc: string, startTime?: number, deadline?: number, requirements?: string[]) => void;
 }
 
 const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
@@ -53,6 +54,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
   const [mColId, setMColId] = useState('col-execute');
   const [mStart, setMStart] = useState('');
   const [mDead, setMDead] = useState('');
+  const [mReqs, setMReqs] = useState<string[]>(['', '', '']);
 
   // Track which cards already spawned a quest (persisted via localStorage as fallback)
   const [spawned, setSpawned] = useState<Set<string>>(() => {
@@ -103,6 +105,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
     setModal({ colId: colId || 'col-execute' });
     setMTitle(''); setMDesc(''); setMEnergy('mid');
     setMColId(colId || 'col-execute'); setMStart(''); setMDead('');
+    setMReqs(['', '', '']);
   };
 
   const openEdit = (c: KanbanCard) => {
@@ -110,6 +113,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
     setMTitle(c.title); setMDesc(c.desc); setMEnergy(c.energy); setMColId(c.colId);
     setMStart(c.startTime ? new Date(c.startTime).toISOString().slice(0, 16) : '');
     setMDead(c.deadline ? new Date(c.deadline).toISOString().slice(0, 16) : '');
+    setMReqs(c.requirements?.length ? [...c.requirements, '', '', ''].slice(0, 3) : ['', '', '']);
   };
 
   const save = () => {
@@ -122,6 +126,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
       setCards(p => p.map(c => c.id === modal.card!.id ? {
         ...c, title: mTitle.trim(), desc: mDesc.trim(), energy: mEnergy, colId: mColId,
         startTime: startT, deadline: deadT, updated: String(now),
+        requirements: mReqs.filter(Boolean),
       } : c));
       show('Updated');
     } else {
@@ -129,6 +134,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
         id: 'c' + now + Math.random().toString(36).slice(2, 6),
         title: mTitle.trim(), desc: mDesc.trim(), energy: mEnergy, colId: mColId,
         created: String(now), updated: String(now), startTime: startT, deadline: deadT,
+        requirements: mReqs.filter(Boolean),
       };
       setCards(p => [card, ...p]);
       show('Added');
@@ -144,7 +150,7 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
       // Auto-create quest on move to execute
       if (to === 'col-execute' && c.colId !== 'col-execute' && onCreateQuest && !spawned.has(id)) {
         setSpawned(prev => new Set(prev).add(id));
-        setTimeout(() => onCreateQuest(c.title, c.desc, c.startTime, c.deadline), 50);
+        setTimeout(() => onCreateQuest(c.title, c.desc, c.startTime, c.deadline, c.requirements || []), 50);
       }
       return { ...c, colId: to, updated: String(nt()) };
     }));
@@ -234,7 +240,14 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
                       <div className="flex items-start gap-1.5">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-semibold text-gray-200 leading-snug break-words">{card.title}</div>
-                          {card.desc && <div className="text-[9px] text-gray-500 mt-0.5 line-clamp-1">{card.desc}</div>}
+                          {card.desc && <div className="text-[9px] text-gray-500 mt-0.5 break-words">{card.desc}</div>}
+                          {card.requirements?.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {card.requirements.map((r, i) => (
+                                <span key={i} className="text-[7px] bg-indigo-500/10 text-indigo-400 px-1.5 py-0.5 rounded border border-indigo-500/20">✓ {r}</span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                         <button onClick={() => del(card.id)} className="opacity-0 group-hover:opacity-100 text-gray-600 hover:text-red-400 p-0.5 transition-opacity shrink-0"><Trash2 size={10} /></button>
                       </div>
@@ -298,6 +311,12 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
                   <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-0.5">⏰ Deadline</label>
                   <input type="datetime-local" className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500" value={mDead} onChange={e => setMDead(e.target.value)} />
                 </div>
+              </div>
+              <div className="mb-3">
+                <label className="text-[9px] text-gray-500 uppercase tracking-wide block mb-1">✓ Proof Requirements</label>
+                {[0, 1, 2].map(i => (
+                  <input key={i} type="text" className="w-full bg-[#0a0a0f] border border-[#1e1e3a] rounded px-2 py-1.5 text-[10px] text-white outline-none focus:border-indigo-500 mb-1" placeholder={`Proof ${i + 1} (e.g. screenshot of class at 3pm)`} value={mReqs[i] || ''} onChange={e => { const r = [...mReqs]; r[i] = e.target.value; setMReqs(r); }} />
+                ))}
               </div>
               <div className="flex gap-2 justify-end">
                 <button onClick={() => setModal(null)} className="flex-1 py-2 rounded-lg text-[10px] font-bold bg-[#1e1e32] text-gray-400 hover:bg-[#2a2a45]">CANCEL</button>
