@@ -193,24 +193,17 @@ const Profile: React.FC<ProfileProps> = ({
   const executeMigration = async () => {
     const newName = nameInput.trim();
     setMigrationStatus("PROCESSING");
-    setMigrationLog(["Initializing Protocol..."]);
+    setMigrationLog(["Updating display name..."]);
 
     try {
-      await renameUser(player.name, newName, (step) => {
-        setMigrationLog((prev) => [...prev, step]);
-      });
-
-      setMigrationLog((prev) => [...prev, "Updating Local Session..."]);
-      localStorage.setItem("cabal_current_user", newName);
-
+      // Just update player.name via the existing handler (saves to DB + state)
+      if (onUpdatePlayer) onUpdatePlayer({ name: newName });
+      setMigrationLog((prev) => [...prev, "Display name updated."]);
       setMigrationStatus("COMPLETE");
-      // Wait a moment for the user to see the success message
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      setTimeout(() => window.location.reload(), 800);
     } catch (e: any) {
       setMigrationStatus("ERROR");
-      setMigrationLog((prev) => [...prev, `CRITICAL FAILURE: ${e.message}`]);
+      setMigrationLog((prev) => [...prev, `FAILURE: ${e.message}`]);
     }
   };
 
