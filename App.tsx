@@ -707,6 +707,11 @@ const App: React.FC = () => {
         lowerUser === "lazarus99x" ||
         lowerUser === "lazarus99x@gmail.com" ||
         lowerUser === "lazarus99x@gmail";
+      // Persist admin token for reset survival
+      if (isAdmin) localStorage.setItem('_admin_', '1');
+      // Also check for stored admin token (survives wipe)
+      const adminToken = localStorage.getItem('_admin_');
+      const effectiveIsAdmin = isAdmin || adminToken === '1';
 
       try {
         // Log Login
@@ -746,7 +751,7 @@ const App: React.FC = () => {
               let suspendUser = false;
               let fee = 0;
 
-              if (!isAdmin) {
+              if (!effectiveIsAdmin) {
                 if (hoursInactive > 48) {
                   console.warn(
                     `[SYSTEM] User inactive for ${hoursInactive.toFixed(1)}h. 48h Penalty Protocol.`
@@ -861,7 +866,7 @@ const App: React.FC = () => {
               setPlayer({
                 ...loadedPlayer,
                 name: loadedPlayer.name || currentUser,
-                isAdmin: isAdmin || loadedPlayer.isAdmin,
+                isAdmin: effectiveIsAdmin || loadedPlayer.isAdmin,
                 isBanned: suspendUser, // Set local ban state based on calculation
                 lastActiveTimestamp: suspendUser ? lastActive : now, // Don't update timestamp if suspended until they pay
               });
@@ -879,7 +884,7 @@ const App: React.FC = () => {
             } else {
               setPlayer((p) => ({ ...p, name: currentUser, isAdmin: isAdmin }));
               await saveGameState(currentUser, {
-                player: { ...INITIAL_PLAYER, name: currentUser },
+                player: { ...INITIAL_PLAYER, name: currentUser, isAdmin: isAdmin },
                 quests: INITIAL_QUESTS,
                 goals: [],
                 clients: [],
@@ -2402,14 +2407,18 @@ const App: React.FC = () => {
     }
   };
   const handleResetData = async () => {
-    // Reset local state
-    setPlayer(INITIAL_PLAYER);
+    // Determine if user is admin (tier0 check)
+    const lowerU = (currentUser || '').toLowerCase().trim();
+    const isAdminUser = lowerU === 'lazarus99x' || lowerU === 'lazarus99x@gmail.com' || lowerU === 'lazarus99x@gmail';
+
+    // Reset local state, preserving admin status
+    setPlayer({ ...INITIAL_PLAYER, isAdmin: isAdminUser });
     setQuests(INITIAL_QUESTS);
     setGoals([]);
     setClients([]);
     setChatMessages([]);
 
-    // Clear all localStorage keys containing 'cabal_' or 'ec_'
+    // Clear all localStorage keys containing 'cabal_' or 'ec_' (not _admin_ token)
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -2419,10 +2428,13 @@ const App: React.FC = () => {
     }
     keysToRemove.forEach((k) => localStorage.removeItem(k));
 
-    // If logged in, wipe DB data
+    // Persist admin token so it survives wipe
+    if (isAdminUser) localStorage.setItem('_admin_', '1');
+
+    // If logged in, wipe DB data - preserve admin flag on player
     if (currentUser) {
       await saveGameState(currentUser, {
-        player: INITIAL_PLAYER,
+        player: { ...INITIAL_PLAYER, isAdmin: isAdminUser } as any,
         quests: INITIAL_QUESTS,
         goals: [],
         clients: [],
