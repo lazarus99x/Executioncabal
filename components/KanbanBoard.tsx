@@ -54,19 +54,36 @@ const KanbanBoard: React.FC<Props> = ({ onSave, onLoad, onCreateQuest }) => {
   const [mStart, setMStart] = useState('');
   const [mDead, setMDead] = useState('');
 
-  // Track which cards already spawned a quest (in-memory only)
-  const [spawned, setSpawned] = useState<Set<string>>(new Set());
+  // Track which cards already spawned a quest (persisted via localStorage as fallback)
+  const [spawned, setSpawned] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('ec_kanban_spawned') || '[]')); }
+    catch { return new Set(); }
+  });
 
-  // Load from DB on mount
+  // Load from DB on mount, fallback to localStorage
   useEffect(() => {
+    const ls = localStorage.getItem('ec_kanban_data');
+    if (ls) {
+      try { setCards(JSON.parse(ls)); } catch {}
+    }
     if (onLoad) {
-      onLoad().then(db => { if (db?.length) setCards(db); }).catch(() => {})
+      onLoad().then(db => {
+        if (db?.length) {
+          setCards(db);
+          localStorage.setItem('ec_kanban_data', JSON.stringify(db));
+        }
+      }).catch(() => {})
         .finally(() => setLoading(false));
     } else setLoading(false);
   }, []);
 
-  // Save on change
-  useEffect(() => { if (!loading && onSave) onSave(cards); }, [cards, loading]);
+  // Save to localStorage AND DB
+  useEffect(() => {
+    if (loading) return;
+    localStorage.setItem('ec_kanban_data', JSON.stringify(cards));
+    localStorage.setItem('ec_kanban_spawned', JSON.stringify(Array.from(spawned)));
+    if (onSave) onSave(cards);
+  }, [cards, spawned, loading]);
 
   const nt = () => Math.floor(Date.now() / 1000);
   const ts = (s?: number) => s ? new Date(s * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
