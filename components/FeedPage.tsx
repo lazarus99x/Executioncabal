@@ -84,11 +84,11 @@ const FeedPage: React.FC<FeedPageProps> = ({
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 md:px-8 py-6 space-y-6">
+    <div className="h-full overflow-y-auto px-3 sm:px-4 md:px-8 py-4 sm:py-6 space-y-4 sm:space-y-6 max-w-full">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
-          <Activity size={20} className="text-cyan-400" />
+        <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center shrink-0">
+          <Activity size={18} className="text-cyan-400" />
         </div>
         <div>
           <h2 className="text-lg font-black uppercase tracking-wider text-white">Execution Feed</h2>
@@ -189,9 +189,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Main feed column */}
-        <div className="lg:col-span-3 space-y-4">
+        <div className="lg:col-span-3 space-y-3 sm:space-y-4">
           {sorted.length === 0 ? (
             <div className="text-center py-16 bg-[#0d0d0d] rounded-xl border border-gray-800">
               <Activity size={40} className="mx-auto text-gray-700 mb-3" />
@@ -224,7 +224,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
                       transition={{ duration: 0.2 }}
-                      className={`group relative flex items-start gap-3 px-4 py-3 rounded-xl border transition-all ${
+                      className={`group relative flex items-start gap-2 sm:gap-3 px-3 sm:px-4 py-3 rounded-xl border transition-all active:scale-[0.99] ${
                         isUserPost
                           ? 'bg-gradient-to-r from-cyan-900/10 to-blue-900/5 border-cyan-500/20 hover:border-cyan-500/40'
                           : isFailure

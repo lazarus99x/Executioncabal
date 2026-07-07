@@ -59,3 +59,20 @@ CREATE POLICY "Public insert tickets" ON support_tickets FOR INSERT WITH CHECK (
 CREATE POLICY "Public select tickets" ON support_tickets FOR SELECT USING (true);
 CREATE POLICY "Public update tickets" ON support_tickets FOR UPDATE USING (true);
 CREATE POLICY "Public delete tickets" ON support_tickets FOR DELETE USING (true);
+
+-- 5. KANBAN CARDS (execution board)
+CREATE TABLE IF NOT EXISTS kanban_cards (
+  id TEXT PRIMARY KEY,
+  username TEXT NOT NULL,
+  card_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_kanban_username ON kanban_cards (username);
+ALTER TABLE kanban_cards ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Public insert kanban" ON kanban_cards FOR INSERT WITH CHECK (true);
+CREATE POLICY "Public select kanban" ON kanban_cards FOR SELECT USING (true);
+CREATE POLICY "Public update kanban" ON kanban_cards FOR UPDATE USING (true);
+CREATE POLICY "Public delete kanban" ON kanban_cards FOR DELETE USING (true);

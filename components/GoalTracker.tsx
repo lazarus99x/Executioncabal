@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Goal, Quest, Player } from '../types';
-import { Target, Plus, Zap, Trash2, ChevronRight, Loader2, Calendar, MessageSquare, Check, X, Clock, ListChecks, CheckCircle, Circle } from 'lucide-react';
+import { Target, Plus, Zap, Trash2, ChevronRight, Loader2, Calendar, MessageSquare, Check, X, Clock, ListChecks, CheckCircle, Circle, Columns } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import KanbanBoard from './KanbanBoard';
 
 interface PlanTask {
   day: number;
@@ -24,10 +25,14 @@ interface GoalTrackerProps {
   onGenerateTasks: (goal: Goal) => Promise<void>;
   isGenerating: boolean;
   onAIRespond?: (prompt: string) => Promise<string>;
+  onSaveKanban?: (cards: any[]) => void;
+  onLoadKanban?: () => Promise<any[]>;
+  onCreateQuestFromKanban?: (title: string, desc: string) => void;
 }
 
-const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onDeleteGoal, onGenerateTasks, isGenerating, onAIRespond }) => {
+const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onDeleteGoal, onGenerateTasks, isGenerating, onAIRespond, onSaveKanban, onLoadKanban, onCreateQuestFromKanban }) => {
   const [showAdd, setShowAdd] = useState(false);
+  const [activeBoardTab, setActiveBoardTab] = useState<'OBJECTIVES' | 'BOARD'>('OBJECTIVES');
   const [newTitle, setNewTitle] = useState('');
   const [newDeadline, setNewDeadline] = useState('');
   const [step, setStep] = useState<'input' | 'qna' | 'preview'>('input');
@@ -212,6 +217,33 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
             <Plus size={16} /> SET OBJECTIVE
           </button>
         </header>
+
+        {/* Tab navigation */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200 dark:border-gray-800 pb-1">
+          <button
+            onClick={() => setActiveBoardTab('OBJECTIVES')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold font-mono uppercase tracking-wider rounded-t-lg transition-colors ${
+              activeBoardTab === 'OBJECTIVES'
+                ? 'bg-system-blue/10 text-system-blue border-b-2 border-system-blue'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
+            }`}
+          >
+            <Target size={14} /> Objectives
+          </button>
+          <button
+            onClick={() => setActiveBoardTab('BOARD')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold font-mono uppercase tracking-wider rounded-t-lg transition-colors ${
+              activeBoardTab === 'BOARD'
+                ? 'bg-indigo-500/10 text-indigo-400 border-b-2 border-indigo-400'
+                : 'text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
+            }`}
+          >
+            <Columns size={14} /> Board
+          </button>
+        </div>
+
+        {activeBoardTab === 'OBJECTIVES' ? (
+        <>
 
         {/* ADD / WIZARD MODAL */}
         <AnimatePresence>
@@ -406,7 +438,13 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
             </div>
           )}
         </div>
-      </div>
+        </>
+      ) : (
+        <div className="pb-6">
+          <KanbanBoard onSave={onSaveKanban} onLoad={onLoadKanban} onCreateQuest={onCreateQuestFromKanban} />
+        </div>
+      )}
+      </div>  {/* closes max-w-4xl */}
 
       {/* DELETE CONFIRM */}
       <AnimatePresence>

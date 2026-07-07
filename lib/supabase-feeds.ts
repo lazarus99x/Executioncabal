@@ -105,3 +105,63 @@ export const loadTicketsFromDB = async (): Promise<any[]> => {
     return [];
   }
 };
+
+export const clearFeedForUser = async (username: string) => {
+  try {
+    await supabase.from("feed_activities").delete().eq("username", username);
+  } catch (e: any) {
+    console.warn("clearFeedForUser failed:", e.message);
+  }
+};
+
+export const clearSquadsForUser = async (username: string) => {
+  try {
+    await supabase
+      .from("squads")
+      .delete()
+      .filter("squad_data->>adminName", "eq", username);
+  } catch (e: any) {
+    console.warn("clearSquadsForUser failed:", e.message);
+  }
+};
+
+export const clearTicketsForUser = async (username: string) => {
+  try {
+    await supabase
+      .from("support_tickets")
+      .delete()
+      .filter("ticket_data->>username", "eq", username);
+  } catch (e: any) {
+    console.warn("clearTicketsForUser failed:", e.message);
+  }
+};
+
+// --- KANBAN BOARD Persisted to Supabase ---
+
+export const saveKanbanCardsToDB = async (cards: any[], username: string) => {
+  try {
+    const rows = cards.map((c: any) => ({
+      id: c.id,
+      username,
+      card_data: c,
+      updated_at: new Date().toISOString(),
+    }));
+    if (rows.length > 0) {
+      await supabase.from("kanban_cards").upsert(rows, { onConflict: "id" });
+    }
+  } catch (e: any) {
+    console.warn("Kanban save failed:", e.message);
+  }
+};
+
+export const loadKanbanCardsFromDB = async (username: string): Promise<any[]> => {
+  try {
+    const { data } = await supabase
+      .from("kanban_cards")
+      .select("*")
+      .eq("username", username);
+    return ((data || []) as any[]).map((r: any) => r.card_data);
+  } catch {
+    return [];
+  }
+};

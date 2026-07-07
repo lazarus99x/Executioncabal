@@ -44,6 +44,8 @@ import {
   saveFeedActivityToDB, deleteFeedActivityFromDB, loadFeedFromDB,
   saveSquadsToDB, loadSquadsFromDB,
   saveTicketsToDB, loadTicketsFromDB,
+  clearFeedForUser, clearSquadsForUser, clearTicketsForUser,
+  saveKanbanCardsToDB, loadKanbanCardsFromDB,
 } from "./lib/supabase-feeds";
 import {
   generateQuestFromInput,
@@ -2400,7 +2402,39 @@ const App: React.FC = () => {
     }
   };
   const handleResetData = async () => {
-    /* ... */
+    // Reset local state
+    setPlayer(INITIAL_PLAYER);
+    setQuests(INITIAL_QUESTS);
+    setGoals([]);
+    setClients([]);
+    setChatMessages([]);
+
+    // Clear all localStorage keys containing 'cabal_' or 'ec_'
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.includes('cabal_') || key.includes('ec_'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+
+    // If logged in, wipe DB data
+    if (currentUser) {
+      await saveGameState(currentUser, {
+        player: INITIAL_PLAYER,
+        quests: INITIAL_QUESTS,
+        goals: [],
+        clients: [],
+        chatMessages: [],
+        transactions: [],
+      });
+      await clearFeedForUser(currentUser);
+      await clearSquadsForUser(currentUser);
+      await clearTicketsForUser(currentUser);
+    }
+
+    addNotification("All data has been reset successfully.", "SUCCESS");
   };
   const handleUpdatePassword = async (p: string) => {
     /* ... */
@@ -2759,6 +2793,31 @@ const App: React.FC = () => {
     if (currentUser) {
       await deleteGoal(id);
     }
+  };
+  const handleSaveKanban = (cards: any[]) => {
+    if (currentUser) saveKanbanCardsToDB(cards, currentUser);
+  };
+  const handleLoadKanban = async (): Promise<any[]> => {
+    if (!currentUser) return [];
+    return loadKanbanCardsFromDB(currentUser);
+  };
+  const handleCreateQuestFromKanban = (title: string, desc: string) => {
+    const q = {
+      id: crypto.randomUUID(),
+      title,
+      description: desc || `Kanban task: ${title}`,
+      type: TaskType.SIDE,
+      difficulty: Rank.E,
+      xpReward: 50,
+      penaltyXP: 100,
+      status: TaskStatus.IDLE,
+      requirements: [],
+      durationMinutes: 60,
+      verificationAttempts: 0,
+    };
+    if (currentUser) upsertQuest(q, currentUser);
+    setQuests((p) => [q as any, ...p]);
+    addNotification(`Kanban task moved to Directives ✓`, "SUCCESS");
   };
   const handleAddClient = (c: Client) => {
     if (currentUser) upsertClient(c, currentUser);
@@ -3203,6 +3262,9 @@ const App: React.FC = () => {
               onGenerateTasks={handleGeneratePlan}
               isGenerating={isGenerating}
               onAIRespond={handleAIRespond}
+              onSaveKanban={handleSaveKanban}
+              onLoadKanban={handleLoadKanban}
+              onCreateQuestFromKanban={handleCreateQuestFromKanban}
             />
           )}
           {currentView === "CHECKOUT" && (
