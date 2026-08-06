@@ -321,4 +321,5 @@ export interface Squad {
   xpPool: number;
   createdAt: number;
   isOpen: boolean;
+  invitedUsernames: string[];
 }

@@ -2560,6 +2560,7 @@ const App: React.FC = () => {
       xpPool: 0,
       createdAt: Date.now(),
       isOpen: true,
+      invitedUsernames: [],
     };
     saveSquads([...squads, newSquad]);
     logActivity('SYSTEM', `Created squad: ${name}`, name);
@@ -2583,6 +2584,8 @@ const App: React.FC = () => {
             xpContributed: 0,
             xpLost: 0,
           }],
+          // Clear this user from invitedUsernames when they accept
+          invitedUsernames: s.invitedUsernames?.filter(u => u !== currentUser) || [],
         };
       }
       return s;
@@ -2626,6 +2629,24 @@ const App: React.FC = () => {
       adminId: s.adminId === currentUser ? (s.members.find(m => m.userId !== currentUser)?.userId || s.adminId) : s.adminId,
     })));
     addNotification("You left the squad.", "INFO");
+  };
+
+  const handleInviteUser = (teamId: string, username: string) => {
+    saveSquads(squads.map(s =>
+      s.id === teamId
+        ? { ...s, invitedUsernames: [...new Set([...s.invitedUsernames, username])] }
+        : s
+    ));
+    addNotification(`${username} has been invited to the team.`, 'SUCCESS');
+  };
+
+  const handleRemoveInvite = (teamId: string, username: string) => {
+    saveSquads(squads.map(s =>
+      s.id === teamId
+        ? { ...s, invitedUsernames: s.invitedUsernames.filter(u => u !== username) }
+        : s
+    ));
+    addNotification(`Invite to ${username} cancelled.`, 'INFO');
   };
 
   const handleAssignGoal = (squadId: string, title: string, description: string, assignedTo: string, xpStake: number) => {
@@ -3261,8 +3282,8 @@ const App: React.FC = () => {
               onUpdateGoalStatus={handleUpdateGoalStatus}
               onPostToTeamFeed={handlePostToTeamFeed}
               onSetPlayer={setPlayer}
-              onInviteUser={(teamId, username) => addNotification(`${username} has been invited to the team.`, 'INFO')}
-              onRemoveInvite={(teamId, username) => addNotification(`Invite to ${username} cancelled.`, 'INFO')}
+              onInviteUser={handleInviteUser}
+              onRemoveInvite={handleRemoveInvite}
               previewTeamId={selectedPreviewTeamId}
               onClearPreview={handleClearTeamPreview}
             />

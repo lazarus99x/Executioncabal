@@ -543,27 +543,28 @@ Tasks should build on each other progressively — earlier days are foundational
 
     if (tasks.length === 0) {
       // Fallback: generate varied one task per day (progressive, not repeated)
-      const fallbackTitles = [
-        `Research & gather resources for "${goal.title}"`,
-        `Plan your milestones for "${goal.title}"`,
-        `First execution block: ${goal.title}`,
-        `Review progress & adjust: ${goal.title}`,
-        `Deep work session: ${goal.title}`,
-        `Practice & apply skills for "${goal.title}"`,
-        `Get feedback on "${goal.title}" progress`,
-        `Iterate & improve "${goal.title}"`,
-        `Push forward: ${goal.title}`,
-        `Final review & wrap-up for "${goal.title}"`,
+      const actionPool = [
+        'Research & gather resources', 'Plan milestones & outline',
+        'Execute first batch', 'Review & refine approach',
+        'Deep focused session', 'Practice applied skills',
+        'Seek expert feedback', 'Iterate based on input',
+        'Push milestone forward', 'Consolidate & summarize',
+        'Identify blind spots', 'Optimize workflow',
+        'Build supporting materials', 'Test & validate output',
+        'Document progress', 'Cross-reference with deadline',
+        'Eliminate distractions', 'Accelerate execution',
+        'Fill knowledge gaps', 'Wrap up & finalize',
       ];
       for (let d = 1; d <= daysRemaining; d++) {
-        const t = fallbackTitles[(d - 1) % fallbackTitles.length];
+        const idx = (d - 1) % actionPool.length;
+        const ordinal = d <= 10 ? d : (d % 10) || 10;
         tasks.push({
           day: d,
-          title: t,
-          description: `Daily progress toward: ${goal.title}`,
+          title: `${actionPool[idx]} — ${goal.title} (Day ${ordinal})`,
+          description: `Progressive step ${d} of ${daysRemaining} toward: ${goal.title}. Focus: ${actionPool[idx].toLowerCase()}.`,
           difficulty: 'C' as Rank,
           requirements: ['focus', 'execution'],
-          durationMinutes: 60,
+          durationMinutes: 30 + (d % 5) * 15, // varied duration
         });
       }
     }

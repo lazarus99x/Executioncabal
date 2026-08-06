@@ -130,7 +130,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     const deadlineDate = new Date(newDeadline);
     const daysRemaining = Math.max(1, Math.ceil((deadlineDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 
-    const planPrompt = `Goal: "${newTitle}" by ${newDeadline} (${daysRemaining} days). User context:\n${context}\n\nGenerate a ${daysRemaining}-day roadmap with 1-3 tasks per day. Each task must be DIFFERENT — not the same title repeated. Tasks should be progressive: research → plan → execute → review → improve. Include specific skills to learn, resources to use, places to check, or actions to take. Every task should tell the user WHAT to do, not just "work on goal".\n\nReturn valid JSON only (no markdown, no backticks):\n[\n  {\n    "day": 1,\n    "tasks": [\n      {"title": "Specific actionable task", "description": "How to do it with concrete steps", "durationMinutes": 45}\n    ]\n  }\n]`;
+    const planPrompt = `Goal: "${newTitle}" by ${newDeadline} (${daysRemaining} days). User context:\n${context}\n\nGenerate a ${daysRemaining}-day roadmap with 1-3 tasks per day. CRITICAL: Every single task title MUST be DIFFERENT from every other task title. No two tasks can have the same or similar title. Tasks must be progressive: research → plan → execute → review → improve → optimize → consolidate. Include specific skills to learn, resources to use, places to check, or actions to take. Every task should tell the user WHAT to do, not just "work on goal". Use varied action verbs (research, draft, build, practice, review, optimize, validate, document, refine, complete) across different days.\n\nIMPORTANT: Generate AT LEAST ${Math.min(daysRemaining, 30)} unique tasks across the ${daysRemaining} day span. Days with no unique tasks left to describe should still have tasks that build on previous work.\n\nReturn valid JSON only (no markdown, no backticks):\n[\n  {\n    "day": 1,\n    "tasks": [\n      {"title": "Specific actionable task that is unique from all others", "description": "How to do it with concrete steps", "durationMinutes": 45}\n    ]\n  }\n]`;
     const plan = await askAI(planPrompt);
     try {
       const cleaned = plan.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
@@ -155,24 +155,35 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     const goalTitle = newTitle || 'goal';
     // Generate varied, progressive tasks — not just "Focus session" repeated
     const taskTemplates = [
-      { title: `Research & gather resources for "${goalTitle}"`, desc: `Find 3 tutorials, tools, or articles related to ${goalTitle}`, mins: 45 },
-      { title: `Plan your approach for "${goalTitle}"`, desc: `Break down the goal into 3-5 milestones on paper or a doc`, mins: 30 },
-      { title: `First execution block: ${goalTitle}`, desc: `Complete the first actionable step toward ${goalTitle}`, mins: 60 },
-      { title: `Review progress & adjust "${goalTitle}"`, desc: `Check what's working, what's not, and refine your next steps`, mins: 30 },
-      { title: `Deep work session: ${goalTitle}`, desc: `60-minute focused block with no distractions on ${goalTitle}`, mins: 60 },
-      { title: `Practice & apply skills for "${goalTitle}"`, desc: `Apply what you've learned — real practice beats theory`, mins: 45 },
-      { title: `Get feedback on "${goalTitle}" progress`, desc: `Show someone your work or ask for an expert opinion`, mins: 30 },
-      { title: `Iterate & improve "${goalTitle}"`, desc: `Use feedback to make one concrete improvement`, mins: 45 },
-      { title: `Push forward: ${goalTitle}`, desc: `Complete the next milestone — momentum is key`, mins: 60 },
-      { title: `Final review & wrap-up for "${goalTitle}"`, desc: `Assess what you accomplished and plan next steps`, mins: 30 },
+      { title: `Research & gather resources`, desc: `Find 3 tutorials, tools, or articles related to ${goalTitle}`, mins: 45 },
+      { title: `Plan milestones & outline approach`, desc: `Break down ${goalTitle} into 3-5 concrete milestones`, mins: 30 },
+      { title: `First execution block`, desc: `Complete the first actionable step toward ${goalTitle}`, mins: 60 },
+      { title: `Review progress & adjust`, desc: `Check what's working, what's not, and refine next steps for ${goalTitle}`, mins: 30 },
+      { title: `Deep work session`, desc: `60-minute focused block with no distractions on ${goalTitle}`, mins: 60 },
+      { title: `Practice & apply skills`, desc: `Apply what you've learned toward ${goalTitle} — real practice beats theory`, mins: 45 },
+      { title: `Seek feedback on progress`, desc: `Show someone your work or ask for an expert opinion on ${goalTitle}`, mins: 30 },
+      { title: `Iterate & improve`, desc: `Use feedback to make one concrete improvement toward ${goalTitle}`, mins: 45 },
+      { title: `Push milestone forward`, desc: `Complete the next milestone for ${goalTitle} — momentum is key`, mins: 60 },
+      { title: `Consolidate & summarize`, desc: `Assess what you accomplished on ${goalTitle} and plan next steps`, mins: 30 },
+      { title: `Identify blind spots`, desc: `Find gaps in your approach to ${goalTitle} — what are you avoiding?`, mins: 45 },
+      { title: `Optimize workflow`, desc: `Find faster ways to make progress on ${goalTitle}`, mins: 30 },
+      { title: `Build supporting materials`, desc: `Create templates, checklists, or resources that help with ${goalTitle}`, mins: 60 },
+      { title: `Test & validate output`, desc: `Check if your work on ${goalTitle} actually produces results`, mins: 45 },
+      { title: `Document progress`, desc: `Write down what worked and what didn't for ${goalTitle}`, mins: 30 },
+      { title: `Cross-reference deadline`, desc: `Compare your pace on ${goalTitle} against the deadline — adjust if needed`, mins: 30 },
+      { title: `Eliminate distractions`, desc: `Remove one blocker slowing down progress on ${goalTitle}`, mins: 45 },
+      { title: `Accelerate execution`, desc: `Double your output pace on ${goalTitle} for one session`, mins: 60 },
+      { title: `Fill knowledge gaps`, desc: `Learn one specific thing you're missing for ${goalTitle}`, mins: 45 },
+      { title: `Wrap up & finalize`, desc: `Finish remaining work on ${goalTitle} and prepare for next phase`, mins: 60 },
     ];
-    for (let d = 1; d <= Math.min(days, 30); d++) {
+    for (let d = 1; d <= Math.min(days, 60); d++) {
       const tmpl = taskTemplates[(d - 1) % taskTemplates.length];
+      const ordinal = d <= 10 ? d : (d % 10) || 10;
       result.push({
         day: d,
         date: new Date(Date.now() + (d - 1) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         tasks: [
-          { day: d, title: tmpl.title, description: tmpl.desc, durationMinutes: tmpl.mins },
+          { day: d, title: `${tmpl.title} — ${goalTitle} (Day ${ordinal})`, description: tmpl.desc, durationMinutes: tmpl.mins },
         ],
       });
     }

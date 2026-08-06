@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Plus, UserPlus, LogOut, Shield, Target,
   X, Check, Crown, ArrowRight, Coins,
-  BarChart3, MessageSquare, Columns, Send, Trophy, Search, XCircle,
+  BarChart3, MessageSquare, Columns, Send, Trophy, Search, XCircle, UserCheck,
 } from 'lucide-react';
 import { Squad, SquadMember, SquadGoal, Player, Rank } from '../types';
 import { RANK_COLORS } from '../constants';
@@ -745,6 +745,42 @@ const TeamHub: React.FC<TeamHubProps> = ({
           })}
         </div>
       )}
+
+      {/* Invited Teams — teams that invited the current user */}
+      {(() => {
+        const invitedTeams = teams.filter(t =>
+          t.invitedUsernames?.includes(currentUser) &&
+          !t.members.some(m => m.userId === currentUser) &&
+          t.adminId !== currentUser
+        );
+        if (invitedTeams.length === 0) return null;
+        return (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-[10px] font-mono text-indigo-500 uppercase tracking-widest">
+              <UserCheck size={12} /> Invited ({invitedTeams.length})
+            </div>
+            {invitedTeams.map((team) => (
+              <div key={team.id} className="bg-gradient-to-r from-indigo-900/20 to-transparent border border-indigo-500/30 rounded-xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500/20 to-purple-600/20 border border-indigo-500/30 flex items-center justify-center">
+                    <UserPlus size={16} className="text-indigo-400" />
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-white">{team.name}</span>
+                    <p className="text-[10px] text-gray-500">Invited by {team.adminName} | {team.members.filter(m => !m.userId.startsWith('pending_')).length} members</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { onRequestJoin(team.id); onClearPreview?.(); }}
+                  className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-colors"
+                >
+                  <UserCheck size={12} /> Accept
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Open Teams to Join */}
       {openTeams.length > 0 && (
