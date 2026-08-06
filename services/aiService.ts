@@ -517,56 +517,32 @@ export const generateTasksFromGoal = async (goal: Goal): Promise<Quest[]> => {
   try {
     const deadline = goal.deadline || Date.now() + 7 * 24 * 60 * 60 * 1000;
     const daysRemaining = Math.max(1, Math.ceil((deadline - Date.now()) / (24 * 60 * 60 * 1000)));
-    const tasksPerDay = Math.min(3, Math.max(1, Math.ceil((daysRemaining > 7 ? 2 : 3))));
 
     const response = await callAnthropicProxy({
       model: DEFAULT_MODEL,
       max_tokens: 4096,
-      system: `You are a tactical task planner. Break this goal into daily actionable tasks for ${daysRemaining} days (${tasksPerDay} tasks per day). Each task must be concrete, verifiable, and achievable in one day. Output valid JSON only — no markdown, no backticks.`,
+      system: `You are a REAL-WORLD TASK PLANNER. Your job: break a goal into daily concrete, executable tasks. Each task MUST name specific real platforms, tools, rates, websites, or resources. No generic advice. Output valid JSON only — no markdown, no backticks.`,
       messages: [{
         role: "user",
-        content: `Goal: "${goal.title}". Description: "${goal.notes || goal.description}". Deadline: ${new Date(deadline).toLocaleDateString()}. Days remaining: ${daysRemaining}.
-Output format: JSON array of objects, each with:
-{
-  "day": number (1-based),
-  "title": string,
-  "description": string,
-  "difficulty": "E" | "D" | "C" | "B" | "A",
-  "requirements": string[],
-  "durationMinutes": number (15-180)
-}
-Tasks should build on each other progressively — earlier days are foundational, later days are advanced.`
+        content: `GOAL: "${goal.title}".
+CONTEXT: "${goal.notes || goal.description}".
+DEADLINE: ${new Date(deadline).toLocaleDateString()}. Days: ${daysRemaining}.
+
+CRITICAL RULES:
+1. NAME REAL PLATFORMS. For income: Fiverr, Upwork, Freelancer, Craigslist, specific gig types. For learning: react.dev, freeCodeCamp, Codecademy, specific YouTube channels, Udemy courses. For fitness: MyFitnessPal, StrongLifts, specific exercises. For business: Shopify, WordPress, specific registration portals.
+2. EVERY TASK must be a concrete action the user does TODAY. No "research", "explore", "understand". Use: "Sign up for", "Create profile on", "Build", "Write", "Apply to 10", "Install", "Complete tutorial at X".
+3. Each task title must be DIFFERENT. Include the platform or tool name in the title.
+4. Generate ${Math.min(daysRemaining, 14)} tasks total, 1 per day.
+
+Output format: JSON array:
+[{"day": 1, "title": "Platform-specific action title", "description": "Step-by-step with real names", "difficulty": "E"|"D"|"C"|"B"|"A", "requirements": ["proof"], "durationMinutes": number (15-120)}]`
       }]
     });
     const textContent = response.content.find(c => c.type === 'text')?.text || "";
     const tasks = extractJSON(textContent) || [];
 
     if (tasks.length === 0) {
-      // Fallback: generate varied one task per day (progressive, not repeated)
-      const actionPool = [
-        'Research & gather resources', 'Plan milestones & outline',
-        'Execute first batch', 'Review & refine approach',
-        'Deep focused session', 'Practice applied skills',
-        'Seek expert feedback', 'Iterate based on input',
-        'Push milestone forward', 'Consolidate & summarize',
-        'Identify blind spots', 'Optimize workflow',
-        'Build supporting materials', 'Test & validate output',
-        'Document progress', 'Cross-reference with deadline',
-        'Eliminate distractions', 'Accelerate execution',
-        'Fill knowledge gaps', 'Wrap up & finalize',
-      ];
-      for (let d = 1; d <= daysRemaining; d++) {
-        const idx = (d - 1) % actionPool.length;
-        const ordinal = d <= 10 ? d : (d % 10) || 10;
-        tasks.push({
-          day: d,
-          title: `${actionPool[idx]} — ${goal.title} (Day ${ordinal})`,
-          description: `Progressive step ${d} of ${daysRemaining} toward: ${goal.title}. Focus: ${actionPool[idx].toLowerCase()}.`,
-          difficulty: 'C' as Rank,
-          requirements: ['focus', 'execution'],
-          durationMinutes: 30 + (d % 5) * 15, // varied duration
-        });
-      }
+      return []; // No fallback — if AI fails, return empty
     }
 
     return tasks.map((t: any) => {
