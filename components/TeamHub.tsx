@@ -93,7 +93,6 @@ const TeamHub: React.FC<TeamHubProps> = ({
   // State for search & invite
   const [searchQuery, setSearchQuery] = useState<Record<string, string>>({});
   const [showSearch, setShowSearch] = useState<Record<string, boolean>>({});
-  const [invitedUsers, setInvitedUsers] = useState<Record<string, string[]>>({});
   const searchRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Close dropdown on outside click
@@ -148,29 +147,21 @@ const TeamHub: React.FC<TeamHubProps> = ({
     setFeedMessage('');
   };
 
-  // Invite handlers
+  // Invite handlers — delegates to parent (persisted to squad data), no local state
   const handleInviteUser = (teamId: string, username: string) => {
-    setInvitedUsers(prev => ({
-      ...prev,
-      [teamId]: [...(prev[teamId] || []), username],
-    }));
     onInviteUser?.(teamId, username);
     setSearchQuery(prev => ({ ...prev, [teamId]: '' }));
     setShowSearch(prev => ({ ...prev, [teamId]: false }));
   };
 
   const handleRemoveInvite = (teamId: string, username: string) => {
-    setInvitedUsers(prev => ({
-      ...prev,
-      [teamId]: (prev[teamId] || []).filter(u => u !== username),
-    }));
     onRemoveInvite?.(teamId, username);
   };
 
   // Get available users for a team (not already member, not already invited)
   const getFilteredAvailable = (team: Squad): string[] => {
     const memberUsernames = team.members.map(m => m.username);
-    const teamInvited = invitedUsers[team.id] || [];
+    const teamInvited = team.invitedUsernames || [];
     return availableUsers.filter(
       u => !memberUsernames.includes(u) && !teamInvited.includes(u) && u !== currentUser
     );
@@ -349,7 +340,7 @@ const TeamHub: React.FC<TeamHubProps> = ({
             const tab = getTab(team.id);
             const pendingRequests = team.members.filter(m => m.userId.startsWith('pending_'));
             const teamFeed = teamFeeds[team.id] || [];
-            const teamInvited = invitedUsers[team.id] || [];
+            const teamInvited = team.invitedUsernames || [];
             const filteredAvailable = getFilteredAvailable(team);
             const teamSearchQuery = searchQuery[team.id] || '';
 

@@ -536,9 +536,15 @@ const App: React.FC = () => {
       if (s.adminName) sources.add(s.adminName);
     });
     executionFeed.forEach(a => { if (a.username) sources.add(a.username); });
-    const merged = Array.from(sources).filter(Boolean).sort();
-    setAllUsernames(merged);
-    localStorage.setItem('ec_all_usernames', JSON.stringify(merged));
+    // Also fetch all profiles from DB so search works for any registered user
+    fetchAllProfiles().then(profiles => {
+      profiles.forEach(p => {
+        if (p.username) sources.add(p.username);
+      });
+      const merged = Array.from(sources).filter(Boolean).sort();
+      setAllUsernames(merged);
+      localStorage.setItem('ec_all_usernames', JSON.stringify(merged));
+    });
   }, [currentUser, player.name, squads, executionFeed]);
 
   // Save squads to DB whenever they change
