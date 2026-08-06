@@ -521,7 +521,7 @@ export const generateTasksFromGoal = async (goal: Goal): Promise<Quest[]> => {
     const response = await callAnthropicProxy({
       model: DEFAULT_MODEL,
       max_tokens: 4096,
-      system: `You are a REAL-WORLD TASK PLANNER. Your job: break a goal into daily concrete, executable tasks. Each task MUST name specific real platforms, tools, rates, websites, or resources. No generic advice. Output valid JSON only — no markdown, no backticks.`,
+      system: `You are a STRATEGIC TASK PLANNER. Break a goal into daily concrete tasks. NO saturated platforms (Fiverr, Upwork, Freelancer). Be creative, non-obvious, and specific to the user's situation. Output valid JSON only — no markdown, no backticks.`,
       messages: [{
         role: "user",
         content: `GOAL: "${goal.title}".
@@ -529,13 +529,13 @@ CONTEXT: "${goal.notes || goal.description}".
 DEADLINE: ${new Date(deadline).toLocaleDateString()}. Days: ${daysRemaining}.
 
 CRITICAL RULES:
-1. NAME REAL PLATFORMS. For income: Fiverr, Upwork, Freelancer, Craigslist, specific gig types. For learning: react.dev, freeCodeCamp, Codecademy, specific YouTube channels, Udemy courses. For fitness: MyFitnessPal, StrongLifts, specific exercises. For business: Shopify, WordPress, specific registration portals.
-2. EVERY TASK must be a concrete action the user does TODAY. No "research", "explore", "understand". Use: "Sign up for", "Create profile on", "Build", "Write", "Apply to 10", "Install", "Complete tutorial at X".
-3. Each task title must be DIFFERENT. Include the platform or tool name in the title.
-4. Generate ${Math.min(daysRemaining, 14)} tasks total, 1 per day.
+1. DO NOT mention Fiverr, Upwork, Freelancer, or any saturated mass platforms. Think creatively.
+2. Base suggestions on the user's actual context. Personalize.
+3. EVERY TASK is a concrete action they do today. No "research", "explore". Use real verbs.
+4. Each task must be UNIQUE. Generate ${Math.min(daysRemaining, 10)} tasks total.
 
 Output format: JSON array:
-[{"day": 1, "title": "Platform-specific action title", "description": "Step-by-step with real names", "difficulty": "E"|"D"|"C"|"B"|"A", "requirements": ["proof"], "durationMinutes": number (15-120)}]`
+[{"day": 1, "title": "Creative strategic action", "description": "Step-by-step, specific to user", "difficulty": "E"|"D"|"C"|"B"|"A", "requirements": ["proof"], "durationMinutes": number (15-120)}]`
       }]
     });
     const textContent = response.content.find(c => c.type === 'text')?.text || "";

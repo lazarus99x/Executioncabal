@@ -130,29 +130,30 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     const deadlineDate = new Date(newDeadline);
     const daysRemaining = Math.max(1, Math.ceil((deadlineDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 
-    const planPrompt = `You are a REAL-WORLD TASK PLANNER. Your job: generate a concrete, executable daily plan for a specific goal.
+    const planPrompt = `You are a STRATEGIC TASK PLANNER. Your job: generate an UNIQUE, non-obvious daily plan based on the user's SPECIFIC situation.
 
 GOAL: "${newTitle}"
 DEADLINE: ${newDeadline} (${daysRemaining} days from now)
 USER CONTEXT (their answers to assessment questions):
 ${context}
 
-CRITICAL — STRICT RULES:
-1. NAME REAL PLATFORMS, TOOLS, AND RESOURCES. For income goals: mention Fiverr, Upwork, Freelancer, Craigslist, specific gig types, specific rates. For learning goals: mention specific websites (react.dev, freeCodeCamp, Codecademy, YouTube channels, Udemy courses by name). For fitness goals: mention specific exercises, apps (MyFitnessPal, StrongLifts), routines. For business goals: mention specific tools (Shopify, WordPress, Canva, Mailchimp), specific platforms, actual marketplaces.
+CRITICAL — YOUR PLAN MUST BE STRATEGIC & NON-OBVIOUS:
 
-2. EVERY TASK must be an ACTION the user can EXECUTE in one sitting. No "research", "explore", "learn about", "understand". Use concrete verbs: "Sign up for", "Create a profile on", "Build", "Write", "Send 10 applications to", "Install", "Complete the tutorial at [URL]", "Call 5", "Design", "Upload", "Publish".
+1. DO NOT mention saturated mass platforms (Fiverr, Upwork, Freelancer, Fiverr, Craigslist, etc). Those are what everyone suggests. You need OUT OF THE BOX strategies that actually work.
 
-3. Each task title must be UNIQUE and self-contained. The description must include the EXACT next action.
+2. Instead, analyze the user's context and suggest:
+   - For income goals: niche micro-services, direct outreach to specific business types, productized consulting, info-products for underserved niches, local service arbitrage, referral partnerships, specific high-value skills in demand right now
+   - For learning goals: build a real portfolio project that solves an actual problem, contribute to open source, create content while learning, find a paid apprenticeship path
+   - For business goals: identify gaps in existing markets, creative partnership models, unconventional distribution channels, community-building strategies
+   - For fitness/health: specific program designs for their constraints, habit stacking, accountability systems
 
-4. Generate exactly ${Math.min(daysRemaining, 14)} days, 1 task per day. Quality over quantity.
+3. CRITICAL: Base suggestions on the USER's actual answers. If they said "I'm a student" or "I have 2 hours/day" or "I know Python" — USE THAT to make the plan personal.
 
-5. For income/freelance goals: suggest specific services to offer, specific rates, specific platforms to target, specific outreach strategies. For example "Create a Fiverr gig offering 'I will write 500-word blog posts for $15' in the Writing & Translation category."
+4. EVERY TASK must be an ACTION they can DO in one sitting. No "research", "explore", "learn about". Use concrete verbs: "Write a cold email to 5", "Build a landing page for", "Record a", "Reach out to", "Create a", "Post in", "DM 10".
 
-6. For learning/skill goals: name the exact tutorial, course, chapter, or exercise. For example "Complete the 'Build a Tic-Tac-Toe' tutorial on react.dev (about 2 hours). Build the game in your browser."
+5. Each task title must be UNIQUE. The description must include the EXACT step.
 
-7. For health/fitness goals: name specific workouts, apps, rep schemes, meal types. For example "Download StrongLifts 5x5 app. Do workout A: squat 5x5, bench press 5x5, barbell row 5x5."
-
-8. For business/startup goals: name specific registration steps, legal requirements, tools, platforms. For example "Register your business name on the CAC portal (Nigeria) or file a DBA with your county clerk (US)."
+6. Generate exactly ${Math.min(daysRemaining, 10)} days, 1-2 tasks per day. Quality over quantity. Be creative.
 
 OUTPUT FORMAT — valid JSON only, no markdown, no backticks:
 [
@@ -160,8 +161,8 @@ OUTPUT FORMAT — valid JSON only, no markdown, no backticks:
     "day": 1,
     "tasks": [
       {
-        "title": "Action title (unique, concrete, names a real platform/tool)",
-        "description": "Step-by-step what to do. Name the website, tool, rate, or resource.",
+        "title": "Unique, strategic action (no saturated platforms)",
+        "description": "Step-by-step. Specific, creative, based on user context.",
         "durationMinutes": number (15-120)
       }
     ]
