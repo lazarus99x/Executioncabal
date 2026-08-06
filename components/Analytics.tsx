@@ -159,7 +159,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
   currency = "USD",
   onShareToFeed,
 }) => {
-  const maxStat = Math.max(...(Object.values(player.stats) as number[]), 50);
+  const maxStat = React.useMemo(() => Math.max(...(Object.values(player.stats) as number[]), 50), [player.stats]);
   const inventoryCount = player.inventory?.length || 0;
 
   const [selectedDay, setSelectedDay] = React.useState<{
@@ -255,8 +255,8 @@ const Analytics: React.FC<AnalyticsProps> = ({
     }
   }, []);
 
-  // All-Time Execution Data
-  const getDailyStats = () => {
+  // All-Time Execution Data (memoized, max 90 days)
+  const getDailyStats = React.useCallback(() => {
     // Utility to strictly get local YYYY-MM-DD
     const getLocalYYYYMMDD = (d: Date) => {
       const year = d.getFullYear();
@@ -279,14 +279,14 @@ const Analytics: React.FC<AnalyticsProps> = ({
       else if (q.startTime && q.startTime < earliest) earliest = q.startTime;
     });
 
-    const startDate = new Date(earliest);
+    const startDate = new Date(Math.max(earliest, today.getTime() - 90 * 24 * 60 * 60 * 1000)); // Cap at 90 days back
     startDate.setHours(0, 0, 0, 0);
 
-    // Calculate difference in days strictly avoiding DST issues
+    // Calculate difference in days
     const diffTime = Math.abs(today.getTime() - startDate.getTime());
-    let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)); 
+    let diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 14) diffDays = 14; 
+    if (diffDays < 14) diffDays = 14;
 
     const daysList = Array.from({ length: diffDays + 1 }, (_, i) => {
       const d = new Date(startDate.getTime());
@@ -294,21 +294,26 @@ const Analytics: React.FC<AnalyticsProps> = ({
       return getLocalYYYYMMDD(d);
     });
 
-    return daysList.map((dateString) => {
-      const dayQuests = quests.filter((q) => {
-        if (!q.completedAt) return false;
-        return getLocalYYYYMMDD(new Date(q.completedAt)) === dateString;
-      });
+    // Pre-index quests by date string for O(1) lookups
+    const questsByDate = new Map<string, typeof quests>();
+    for (const q of quests) {
+      if (!q.completedAt) continue;
+      const key = getLocalYYYYMMDD(new Date(q.completedAt));
+      if (!questsByDate.has(key)) questsByDate.set(key, []);
+      questsByDate.get(key)!.push(q);
+    }
 
+    return daysList.map((dateString) => {
+      const dayQuests = questsByDate.get(dateString) || [];
       return {
         date: dateString,
         completed: dayQuests.filter((q) => q.status === TaskStatus.COMPLETED).length,
         failed: dayQuests.filter((q) => q.status === TaskStatus.FAILED).length,
       };
     });
-  };
+  }, [quests]);
 
-  const dailyStats = getDailyStats();
+  const dailyStats = React.useMemo(() => getDailyStats(), [getDailyStats]);
 
   // Calculate Net Worth Estimate based on Earned XP
   const earnedXp = Math.max(0, player.currentXp - player.boughtXp);
@@ -479,9 +484,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
                             {day.completed > 0 && (
                               <motion.div
                                 className="w-full bg-gradient-to-t from-[#0A2E5C] via-system-blue to-cyan-400 shadow-[0_0_20px_rgba(0,162,255,0.7)]"
-                                style={{ height: `${successRatio * 100}%`, backgroundSize: "100% 200%" }}
-                                animate={{ backgroundPosition: ["50% 0%", "50% 100%", "50% 0%"] }}
-                                transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+                                style={{ height: `${successRatio * 100}%` }}
                               ></motion.div>
                             )}
 
@@ -489,9 +492,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
                             {day.failed > 0 && (
                               <motion.div
                                 className="w-full bg-gradient-to-t from-[#5a0000] via-[#dc2626] to-[#ff2a2a] shadow-[0_0_25px_rgba(255,0,0,0.8)] border-b border-black/50"
-                                style={{ height: `${failRatio * 100}%`, backgroundSize: "100% 200%" }}
-                                animate={{ backgroundPosition: ["50% 0%", "50% 100%", "50% 0%"] }}
-                                transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
+                                style={{ height: `${failRatio * 100}%` }}
                               ></motion.div>
                             )}
                           </motion.div>

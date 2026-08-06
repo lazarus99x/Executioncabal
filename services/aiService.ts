@@ -542,11 +542,24 @@ Tasks should build on each other progressively — earlier days are foundational
     const tasks = extractJSON(textContent) || [];
 
     if (tasks.length === 0) {
-      // Fallback: generate one task per day manually
+      // Fallback: generate varied one task per day (progressive, not repeated)
+      const fallbackTitles = [
+        `Research & gather resources for "${goal.title}"`,
+        `Plan your milestones for "${goal.title}"`,
+        `First execution block: ${goal.title}`,
+        `Review progress & adjust: ${goal.title}`,
+        `Deep work session: ${goal.title}`,
+        `Practice & apply skills for "${goal.title}"`,
+        `Get feedback on "${goal.title}" progress`,
+        `Iterate & improve "${goal.title}"`,
+        `Push forward: ${goal.title}`,
+        `Final review & wrap-up for "${goal.title}"`,
+      ];
       for (let d = 1; d <= daysRemaining; d++) {
+        const t = fallbackTitles[(d - 1) % fallbackTitles.length];
         tasks.push({
           day: d,
-          title: `Day ${d}: Work on "${goal.title}"`,
+          title: t,
           description: `Daily progress toward: ${goal.title}`,
           difficulty: 'C' as Rank,
           requirements: ['focus', 'execution'],

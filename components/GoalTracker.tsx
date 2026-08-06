@@ -130,7 +130,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
     const deadlineDate = new Date(newDeadline);
     const daysRemaining = Math.max(1, Math.ceil((deadlineDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000)));
 
-    const planPrompt = `Goal: "${newTitle}" by ${newDeadline} (${daysRemaining} days). User context:\n${context}\n\nGenerate a ${daysRemaining}-day roadmap with 1-3 tasks per day. Each task must be concrete, verifiable, and achievable in one session. Earlier tasks build a foundation, later tasks are more advanced.\n\nReturn valid JSON only (no markdown, no backticks):\n[\n  {\n    "day": 1,\n    "tasks": [\n      {"title": "Task title", "description": "Actionable description", "durationMinutes": 45}\n    ]\n  }\n]`;
+    const planPrompt = `Goal: "${newTitle}" by ${newDeadline} (${daysRemaining} days). User context:\n${context}\n\nGenerate a ${daysRemaining}-day roadmap with 1-3 tasks per day. Each task must be DIFFERENT — not the same title repeated. Tasks should be progressive: research → plan → execute → review → improve. Include specific skills to learn, resources to use, places to check, or actions to take. Every task should tell the user WHAT to do, not just "work on goal".\n\nReturn valid JSON only (no markdown, no backticks):\n[\n  {\n    "day": 1,\n    "tasks": [\n      {"title": "Specific actionable task", "description": "How to do it with concrete steps", "durationMinutes": 45}\n    ]\n  }\n]`;
     const plan = await askAI(planPrompt);
     try {
       const cleaned = plan.replace(/```json\s*/gi, '').replace(/```/g, '').trim();
@@ -152,12 +152,27 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
 
   const generateFallbackPlan = (days: number): DailySection[] => {
     const result: DailySection[] = [];
-    for (let d = 1; d <= Math.min(days, 14); d++) {
+    const goalTitle = newTitle || 'goal';
+    // Generate varied, progressive tasks — not just "Focus session" repeated
+    const taskTemplates = [
+      { title: `Research & gather resources for "${goalTitle}"`, desc: `Find 3 tutorials, tools, or articles related to ${goalTitle}`, mins: 45 },
+      { title: `Plan your approach for "${goalTitle}"`, desc: `Break down the goal into 3-5 milestones on paper or a doc`, mins: 30 },
+      { title: `First execution block: ${goalTitle}`, desc: `Complete the first actionable step toward ${goalTitle}`, mins: 60 },
+      { title: `Review progress & adjust "${goalTitle}"`, desc: `Check what's working, what's not, and refine your next steps`, mins: 30 },
+      { title: `Deep work session: ${goalTitle}`, desc: `60-minute focused block with no distractions on ${goalTitle}`, mins: 60 },
+      { title: `Practice & apply skills for "${goalTitle}"`, desc: `Apply what you've learned — real practice beats theory`, mins: 45 },
+      { title: `Get feedback on "${goalTitle}" progress`, desc: `Show someone your work or ask for an expert opinion`, mins: 30 },
+      { title: `Iterate & improve "${goalTitle}"`, desc: `Use feedback to make one concrete improvement`, mins: 45 },
+      { title: `Push forward: ${goalTitle}`, desc: `Complete the next milestone — momentum is key`, mins: 60 },
+      { title: `Final review & wrap-up for "${goalTitle}"`, desc: `Assess what you accomplished and plan next steps`, mins: 30 },
+    ];
+    for (let d = 1; d <= Math.min(days, 30); d++) {
+      const tmpl = taskTemplates[(d - 1) % taskTemplates.length];
       result.push({
         day: d,
         date: new Date(Date.now() + (d - 1) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
         tasks: [
-          { day: d, title: `Focus session: ${newTitle}`, description: `Dedicated block for ${newTitle} progress`, durationMinutes: 60 },
+          { day: d, title: tmpl.title, description: tmpl.desc, durationMinutes: tmpl.mins },
         ],
       });
     }
@@ -248,7 +263,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
         {/* ADD / WIZARD MODAL */}
         <AnimatePresence>
           {showAdd && (
-            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white dark:bg-system-panel border border-system-blue/30 p-6 mb-8 rounded shadow-lg">
+            <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="bg-white dark:bg-system-panel border border-system-blue/30 p-4 sm:p-6 mb-8 rounded shadow-lg max-h-[85vh] overflow-y-auto">
               {step === 'input' && (
                 <>
                   <h3 className="text-system-blue font-bold font-mono mb-4">NEW OBJECTIVE</h3>
@@ -309,7 +324,7 @@ const GoalTracker: React.FC<GoalTrackerProps> = ({ goals, player, onAddGoal, onD
                       </div>
 
                       {/* Day-by-day cards */}
-                      <div className="space-y-2 max-h-80 overflow-y-auto pr-1 mb-4">
+                      <div className="space-y-2 max-h-[50vh] sm:max-h-80 overflow-y-auto pr-1 mb-4">
                         {planDays.map((section) => (
                           <motion.div
                             key={section.day}
