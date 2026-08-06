@@ -181,7 +181,7 @@ OUTPUT FORMAT — valid JSON only, no markdown, no backticks:
       if (days.length === 0) throw new Error('No days generated');
       setPlanDays(days);
     } catch {
-      // No fallback - show error message if AI fails
+      setLoadingAI(false);
       setPlanDays([]);
       setStep('input');
       return;

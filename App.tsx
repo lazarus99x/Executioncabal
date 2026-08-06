@@ -2385,7 +2385,7 @@ const App: React.FC = () => {
       const res = await fetch("/api/anthropic", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 2000, system: "You are a smart goal assistant. Respond concisely with JSON or plain text as requested.", messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 4096, system: "You are a smart goal assistant. Respond concisely with JSON or plain text as requested.", messages: [{ role: "user", content: prompt }] }),
       });
       if (!res.ok) return '';
       const data = await res.json();
